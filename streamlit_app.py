@@ -74,7 +74,7 @@ This dashboard explores these questions using historical Seaport Air Emissions I
 """)
 
 # --- Filters ---
-st.markdown("### Select a Pollutant to Explore")
+st.markdown("### Select a Pollutant")
 metric_labels = {
     "DPM": "Diesel Particulate Matter (DPM)",
     "ROG": "Reactive Organic Gases (ROG)"
