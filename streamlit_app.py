@@ -327,6 +327,69 @@ with tab2:
             fig_renew = apply_clean_layout(fig_renew)
             st.plotly_chart(fig_renew, use_container_width=True)
 
+        # --- Avoided Emissions Impact ---
+        if "ShorePowerPluginRate" in df_act.columns and "RenewableEnergyPercent" in df_act.columns:
+            st.markdown("---")
+            st.markdown("## Avoided Emissions Impact")
+            st.markdown(f"""
+            This section estimates the net avoided emissions achieved by shore power.
+            
+            **Methodology:**
+            1. **Baseline Berth Emissions Rate** = Total 2005 Berth Emissions / 2005 Vessel Calls
+            2. **Gross Avoided Emissions** = Plugged-In Vessels × Baseline Berth Emissions Rate
+            3. **Net Avoided Emissions** = Gross Avoided Emissions × (Renewable Energy %)
+            
+            *(Note: This is a simplified proxy assuming non-renewable grid intensity offsets the avoided emissions proportionally.)*
+            """)
+            
+            # 1. Calculate Baseline Berth Emissions per Vessel Call for selected pollutant
+            if df_ogv is not None and 2005 in df_ogv["Year"].values and 2005 in df_act["Year"].values:
+                baseline_berth_emissions = df_ogv[(df_ogv["Year"] == 2005) & (df_ogv["Mode"] == "Berth")][pollutant].sum()
+                baseline_vessel_calls = df_act[df_act["Year"] == 2005]["VesselCalls"].sum()
+                
+                if baseline_vessel_calls > 0:
+                    baseline_rate = baseline_berth_emissions / baseline_vessel_calls
+                    
+                    # 2. Calculate Gross Avoided Emissions
+                    # We already have df_act["PluggedInVessels"]
+                    df_act["GrossAvoidedEmissions"] = df_act["PluggedInVessels"] * baseline_rate
+                    
+                    # 3. Calculate Net Avoided Emissions
+                    df_act["NetAvoidedEmissions"] = df_act["GrossAvoidedEmissions"] * (df_act["RenewableEnergyPercent"] / 100)
+                    
+                    fig_avoid = make_subplots(specs=[[{"secondary_y": True}]])
+                    
+                    fig_avoid.add_trace(
+                        go.Bar(
+                            x=df_act["Year"], 
+                            y=df_act["NetAvoidedEmissions"], 
+                            name=f"Net Avoided {pollutant} (MT)",
+                            marker_color="#10b981"
+                        ),
+                        secondary_y=False,
+                    )
+                    
+                    fig_avoid.add_trace(
+                        go.Scatter(
+                            x=df_act["Year"], 
+                            y=df_act["RenewableEnergyPercent"], 
+                            name="Grid Cleanliness (%)",
+                            mode='lines+markers',
+                            line=dict(color="#0ea5e9", width=3)
+                        ),
+                        secondary_y=True,
+                    )
+                    
+                    fig_avoid.update_layout(
+                        hovermode="x unified",
+                        barmode='group'
+                    )
+                    fig_avoid.update_yaxes(title_text=f"Avoided {pollutant} (MT)", secondary_y=False)
+                    fig_avoid.update_yaxes(title_text="Grid Cleanliness (%)", range=[0,100], secondary_y=True)
+                    
+                    fig_avoid = apply_clean_layout(fig_avoid)
+                    st.plotly_chart(fig_avoid, use_container_width=True)
+
 # Footer
 st.markdown("---")
 st.caption("Data source: Official Port of Oakland Seaport Air Emissions Inventories. Dashboard designed for clarity and narrative analysis.")
