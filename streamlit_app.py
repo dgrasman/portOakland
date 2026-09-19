@@ -150,11 +150,20 @@ if method == "Historical":
             latest_emissions_val = filtered_df[filtered_df["Year"] == latest_common_year][pollutant].sum()
             intensity = latest_emissions_val / latest_teu
             
+            intensity_delta = None
+            if 2005 in common_years:
+                base_teu = df_act[df_act["Year"] == 2005]["TEU"].values[0]
+                base_emiss = filtered_df[filtered_df["Year"] == 2005][pollutant].sum()
+                if base_teu > 0 and base_emiss > 0:
+                    base_intensity = base_emiss / base_teu
+                    intensity_pct_change = ((intensity - base_intensity) / base_intensity) * 100
+                    intensity_delta = f"{intensity_pct_change:.1f}%"
+            
             if intensity < 0.01:
                 # 1 Metric Tonne = 1000 kg
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/TEU", delta=intensity_delta, delta_color="inverse")
             else:
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/TEU", delta=intensity_delta, delta_color="inverse")
         else:
             col3.metric("Emissions Intensity", "N/A")
     else:
@@ -201,6 +210,30 @@ if df_act is not None:
     fig_act.update_layout(hovermode="x unified")
     fig_act = apply_clean_layout(fig_act)
     st.plotly_chart(fig_act, use_container_width=True)
+
+    # --- Shore Power Plug-in Rates ---
+    st.markdown("---")
+    st.markdown("## Shore Power Plug-in Rates")
+    st.markdown("""
+    "Shore Power" or "Cold Ironing" allows Ocean-Going Vessels to plug into the electrical grid while at berth, allowing them to shut off their auxiliary diesel engines. This has been a massive driver of emissions reductions.
+    
+    This chart tracks the percentage of total vessel calls that successfully connected to Shore Power.
+    """)
+    
+    if "ShorePowerPluginRate" in df_act.columns:
+        fig_shore = px.area(
+            df_act, 
+            x="Year", 
+            y="ShorePowerPluginRate", 
+            color_discrete_sequence=["#10b981"] # Green for environmental progress
+        )
+        fig_shore.update_traces(fillcolor='rgba(16, 185, 129, 0.3)', line=dict(width=3))
+        fig_shore.update_layout(
+            hovermode="x unified",
+            yaxis=dict(title="Plug-in Rate (%)", range=[0, 100])
+        )
+        fig_shore = apply_clean_layout(fig_shore)
+        st.plotly_chart(fig_shore, use_container_width=True)
 
     # --- Ocean-Going Vessels (OGV) ---
     st.markdown("---")

@@ -87,11 +87,11 @@ data = [
 ]
 
 activity_data = [
-    {"Year": 2005, "TEU": 2273990, "VesselCalls": 1916, "TruckTrips": 2620483},
-    {"Year": 2012, "TEU": 2344392, "VesselCalls": 1812, "TruckTrips": 2339792},
-    {"Year": 2015, "TEU": 2277521, "VesselCalls": 1393, "TruckTrips": 2081130},
-    {"Year": 2017, "TEU": 2420837, "VesselCalls": 1596, "TruckTrips": 2081932},
-    {"Year": 2020, "TEU": 2461262, "VesselCalls": 1231, "TruckTrips": 2892052},
+    {"Year": 2005, "TEU": 2273990, "VesselCalls": 1916, "TruckTrips": 2620483, "ShorePowerPluginRate": 0.0, "RenewableEnergyPercent": 20.0},
+    {"Year": 2012, "TEU": 2344392, "VesselCalls": 1812, "TruckTrips": 2339792, "ShorePowerPluginRate": 0.0, "RenewableEnergyPercent": 33.0},
+    {"Year": 2015, "TEU": 2277521, "VesselCalls": 1393, "TruckTrips": 2081130, "ShorePowerPluginRate": 50.0, "RenewableEnergyPercent": 40.0},
+    {"Year": 2017, "TEU": 2420837, "VesselCalls": 1596, "TruckTrips": 2081932, "ShorePowerPluginRate": 68.0, "RenewableEnergyPercent": 50.0},
+    {"Year": 2020, "TEU": 2461262, "VesselCalls": 1231, "TruckTrips": 2892052, "ShorePowerPluginRate": 80.0, "RenewableEnergyPercent": 65.0},
 ]
 
 ogv_modes = [
