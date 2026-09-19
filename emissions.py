@@ -86,7 +86,80 @@ data = [
     {"Year": 2024, "Method": "Best Estimate", "Category": "Other Off-Road", "ROG": 1.4, "CO": 40.1, "NOx": 3.0, "PM10": 0.1, "PM2_5": 0.1, "DPM": 0.05, "SOx": 0.01, "CO2e": 637.0},
 ]
 
+activity_data = [
+    {"Year": 2005, "TEU": 2273990, "VesselCalls": 1916, "TruckTrips": 2620483},
+    {"Year": 2012, "TEU": 2344392, "VesselCalls": 1812, "TruckTrips": 2339792},
+    {"Year": 2015, "TEU": 2277521, "VesselCalls": 1393, "TruckTrips": 2081130},
+    {"Year": 2017, "TEU": 2420837, "VesselCalls": 1596, "TruckTrips": 2081932},
+    {"Year": 2020, "TEU": 2461262, "VesselCalls": 1231, "TruckTrips": 2892052},
+]
+
+ogv_modes = [
+    {"Year": 2005, "Mode": "Cruise", "ROG": 16, "CO": 46, "NOx": 588, "PM10": 52.4, "PM2_5": 0, "DPM": 52.4, "SOx": 383, "CO2e": 0},
+    {"Year": 2005, "Mode": "RSZ", "ROG": 27, "CO": 63, "NOx": 647, "PM10": 60.2, "PM2_5": 0, "DPM": 60.2, "SOx": 395, "CO2e": 0},
+    {"Year": 2005, "Mode": "Maneuver", "ROG": 53, "CO": 58, "NOx": 458, "PM10": 43.6, "PM2_5": 0, "DPM": 43.6, "SOx": 157, "CO2e": 0},
+    {"Year": 2005, "Mode": "Berth", "ROG": 21, "CO": 65, "NOx": 767, "PM10": 61.3, "PM2_5": 0, "DPM": 61.3, "SOx": 464, "CO2e": 0},
+    {"Year": 2005, "Mode": "Anchorage", "ROG": 1, "CO": 2, "NOx": 24, "PM10": 2.0, "PM2_5": 0, "DPM": 2.0, "SOx": 15, "CO2e": 0},
+
+    {"Year": 2012, "Mode": "Cruise", "ROG": 30, "CO": 42, "NOx": 618, "PM10": 14.0, "PM2_5": 13.0, "DPM": 12.0, "SOx": 65, "CO2e": 24712},
+    {"Year": 2012, "Mode": "RSZ", "ROG": 38, "CO": 52, "NOx": 626, "PM10": 15.3, "PM2_5": 14.2, "DPM": 12.7, "SOx": 70, "CO2e": 26598},
+    {"Year": 2012, "Mode": "Maneuver", "ROG": 72, "CO": 61, "NOx": 512, "PM10": 13.6, "PM2_5": 12.6, "DPM": 12.4, "SOx": 34, "CO2e": 17551},
+    {"Year": 2012, "Mode": "Berth", "ROG": 36, "CO": 75, "NOx": 825, "PM10": 23.7, "PM2_5": 22.0, "DPM": 20.1, "SOx": 119, "CO2e": 64619},
+    {"Year": 2012, "Mode": "Anchorage", "ROG": 0, "CO": 1, "NOx": 11, "PM10": 0.3, "PM2_5": 0.3, "DPM": 0.3, "SOx": 2, "CO2e": 853},
+
+    {"Year": 2015, "Mode": "Cruise", "ROG": 25.25, "CO": 36.10, "NOx": 502.00, "PM10": 8.51, "PM2_5": 7.84, "DPM": 8.13, "SOx": 31.00, "CO2e": 21091},
+    {"Year": 2015, "Mode": "RSZ", "ROG": 32.06, "CO": 44.52, "NOx": 509.79, "PM10": 9.27, "PM2_5": 8.52, "DPM": 8.66, "SOx": 32.95, "CO2e": 22673},
+    {"Year": 2015, "Mode": "Maneuver", "ROG": 61.39, "CO": 52.45, "NOx": 416.07, "PM10": 8.93, "PM2_5": 8.24, "DPM": 8.57, "SOx": 10.18, "CO2e": 15129},
+    {"Year": 2015, "Mode": "Berth", "ROG": 41.31, "CO": 86.26, "NOx": 890.16, "PM10": 22.61, "PM2_5": 21.05, "DPM": 18.05, "SOx": 48.72, "CO2e": 82067},
+    {"Year": 2015, "Mode": "Anchorage", "ROG": 17.19, "CO": 36.13, "NOx": 369.51, "PM10": 8.86, "PM2_5": 8.15, "DPM": 7.88, "SOx": 17.93, "CO2e": 28792},
+
+    {"Year": 2017, "Mode": "Cruise", "ROG": 31.17, "CO": 44.49, "NOx": 651.45, "PM10": 11.37, "PM2_5": 10.53, "DPM": 10.01, "SOx": 41.25, "CO2e": 26040},
+    {"Year": 2017, "Mode": "RSZ", "ROG": 39.11, "CO": 52.83, "NOx": 592.27, "PM10": 11.78, "PM2_5": 10.93, "DPM": 10.05, "SOx": 42.46, "CO2e": 25046},
+    {"Year": 2017, "Mode": "Maneuver", "ROG": 74.75, "CO": 64.47, "NOx": 526.35, "PM10": 11.47, "PM2_5": 10.60, "DPM": 10.60, "SOx": 13.14, "CO2e": 18938},
+    {"Year": 2017, "Mode": "Berth", "ROG": 20.83, "CO": 43.33, "NOx": 444.05, "PM10": 11.80, "PM2_5": 11.02, "DPM": 8.84, "SOx": 27.02, "CO2e": 45240},
+    {"Year": 2017, "Mode": "Anchorage", "ROG": 3.70, "CO": 7.76, "NOx": 78.44, "PM10": 1.96, "PM2_5": 1.82, "DPM": 1.66, "SOx": 3.96, "CO2e": 6714},
+
+    {"Year": 2020, "Mode": "Cruise", "ROG": 25.22, "CO": 44.75, "NOx": 491.62, "PM10": 6.23, "PM2_5": 5.73, "DPM": 6.16, "SOx": 12.10, "CO2e": 19560},
+    {"Year": 2020, "Mode": "RSZ", "ROG": 31.30, "CO": 51.83, "NOx": 455.96, "PM10": 6.56, "PM2_5": 6.04, "DPM": 6.17, "SOx": 12.09, "CO2e": 19545},
+    {"Year": 2020, "Mode": "Maneuver", "ROG": 60.58, "CO": 60.67, "NOx": 415.25, "PM10": 6.70, "PM2_5": 6.17, "DPM": 6.40, "SOx": 9.32, "CO2e": 15057},
+    {"Year": 2020, "Mode": "Berth", "ROG": 18.38, "CO": 38.99, "NOx": 378.99, "PM10": 9.23, "PM2_5": 8.49, "DPM": 5.63, "SOx": 25.34, "CO2e": 42492},
+    {"Year": 2020, "Mode": "Anchorage", "ROG": 8.45, "CO": 17.75, "NOx": 179.71, "PM10": 3.44, "PM2_5": 3.16, "DPM": 2.81, "SOx": 8.79, "CO2e": 14200},
+]
+
 df = pd.DataFrame(data)
+df_activity = pd.DataFrame(activity_data)
+df_ogv_modes = pd.DataFrame(ogv_modes)
+
+truck_modes = [
+    {"Year": 2012, "Mode": "Surface Roads", "ROG": 3.14, "CO": 11.19, "NOx": 80.0, "PM10": 1.76, "PM2_5": 1.21, "DPM": 1.02, "SOx": 0.127, "CO2e": 14994},
+    {"Year": 2012, "Mode": "Gate Idling", "ROG": 1.76, "CO": 9.48, "NOx": 15.5, "PM10": 0.12, "PM2_5": 0.11, "DPM": 0.12, "SOx": 0.015, "CO2e": 1562},
+    {"Year": 2012, "Mode": "In-Terminal Idling", "ROG": 3.38, "CO": 18.15, "NOx": 29.8, "PM10": 0.23, "PM2_5": 0.22, "DPM": 0.23, "SOx": 0.028, "CO2e": 2989},
+    {"Year": 2012, "Mode": "In-Terminal Driving", "ROG": 4.32, "CO": 9.86, "NOx": 9.9, "PM10": 0.88, "PM2_5": 0.65, "DPM": 0.60, "SOx": 0.049, "CO2e": 8654},
+
+    {"Year": 2015, "Mode": "Surface Roads", "ROG": 2.21, "CO": 7.02, "NOx": 46.93, "PM10": 0.83, "PM2_5": 0.43, "DPM": 0.22, "SOx": 0.11, "CO2e": 12385},
+    {"Year": 2015, "Mode": "Gate Idling", "ROG": 0.42, "CO": 1.68, "NOx": 11.61, "PM10": 0.002, "PM2_5": 0.002, "DPM": 0.002, "SOx": 0.02, "CO2e": 1838},
+    {"Year": 2015, "Mode": "In-Terminal Idling", "ROG": 0.71, "CO": 2.84, "NOx": 19.66, "PM10": 0.004, "PM2_5": 0.004, "DPM": 0.004, "SOx": 0.03, "CO2e": 3113},
+    {"Year": 2015, "Mode": "In-Terminal Driving", "ROG": 2.68, "CO": 8.45, "NOx": 35.85, "PM10": 0.40, "PM2_5": 0.23, "DPM": 0.13, "SOx": 0.05, "CO2e": 7619},
+
+    {"Year": 2017, "Mode": "Surface Roads", "ROG": 1.07, "CO": 3.35, "NOx": 23.15, "PM10": 0.488, "PM2_5": 0.251, "DPM": 0.125, "SOx": 0.07, "CO2e": 7276},
+    {"Year": 2017, "Mode": "Gate Idling", "ROG": 0.43, "CO": 4.10, "NOx": 8.31, "PM10": 0.003, "PM2_5": 0.003, "DPM": 0.003, "SOx": 0.01, "CO2e": 1272},
+    {"Year": 2017, "Mode": "In-Terminal Idling", "ROG": 0.99, "CO": 9.50, "NOx": 19.27, "PM10": 0.007, "PM2_5": 0.006, "DPM": 0.007, "SOx": 0.03, "CO2e": 2947},
+    {"Year": 2017, "Mode": "In-Terminal Driving", "ROG": 2.19, "CO": 6.96, "NOx": 29.17, "PM10": 0.404, "PM2_5": 0.222, "DPM": 0.127, "SOx": 0.07, "CO2e": 8310},
+
+    {"Year": 2020, "Mode": "Surface Roads", "ROG": 0.97, "CO": 3.22, "NOx": 25.30, "PM10": 0.937, "PM2_5": 0.373, "DPM": 0.104, "SOx": 0.09, "CO2e": 9945},
+    {"Year": 2020, "Mode": "Gate Idling", "ROG": 0.59, "CO": 6.34, "NOx": 10.19, "PM10": 0.003, "PM2_5": 0.003, "DPM": 0.003, "SOx": 0.02, "CO2e": 1735},
+    {"Year": 2020, "Mode": "In-Terminal Idling", "ROG": 1.32, "CO": 14.22, "NOx": 22.83, "PM10": 0.008, "PM2_5": 0.007, "DPM": 0.008, "SOx": 0.04, "CO2e": 3890},
+    {"Year": 2020, "Mode": "In-Terminal Driving", "ROG": 1.85, "CO": 6.26, "NOx": 30.95, "PM10": 0.749, "PM2_5": 0.307, "DPM": 0.094, "SOx": 0.09, "CO2e": 10211},
+]
+df_truck_modes = pd.DataFrame(truck_modes)
+
 os.makedirs("data", exist_ok=True)
 df.to_csv("data/oakland_emissions_master.csv", index=False)
+df_activity.to_csv("data/activity_metrics.csv", index=False)
+df_ogv_modes.to_csv("data/ogv_modes.csv", index=False)
+df_truck_modes.to_csv("data/truck_modes.csv", index=False)
+
 print("Master dataset saved to data/oakland_emissions_master.csv")
+print("Activity metrics saved to data/activity_metrics.csv")
+print("OGV Modes saved to data/ogv_modes.csv")
+print("Truck Modes saved to data/truck_modes.csv")

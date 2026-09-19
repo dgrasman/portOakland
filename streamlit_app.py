@@ -11,9 +11,15 @@ st.set_page_config(
 @st.cache_data
 def load_data():
     df = pd.read_csv("data/oakland_emissions_master.csv")
-    return df
+    try:
+        df_act = pd.read_csv("data/activity_metrics.csv")
+        df_ogv = pd.read_csv("data/ogv_modes.csv")
+        df_truck = pd.read_csv("data/truck_modes.csv")
+    except FileNotFoundError:
+        df_act, df_ogv, df_truck = None, None, None
+    return df, df_act, df_ogv, df_truck
 
-df = load_data()
+df, df_act, df_ogv, df_truck = load_data()
 
 # Sidebar Navigation & Global Filters
 st.sidebar.title("Parameters")
@@ -108,3 +114,64 @@ with tab2:
         margins_name="Total Port Emissions"
     )
     st.dataframe(pivot_df.style.format("{:,.2f}"))
+
+# Drill-Down Analytics
+if df_act is not None:
+    st.markdown("---")
+    st.subheader("Deep Dive Analytics")
+    
+    analysis_category = st.selectbox(
+        "Select Category for In-Depth Analysis:", 
+        ["Activity Metrics", "Ocean-Going Vessels", "Drayage Trucks"]
+    )
+    
+    if analysis_category == "Activity Metrics":
+        st.markdown(f"#### Port Activity Trends")
+        # Dual axis or normalized chart for TEU vs others
+        fig_act = px.line(
+            df_act, 
+            x="Year", 
+            y=["TEU", "TruckTrips"], 
+            title="TEU Throughput vs Truck Trips",
+            template="simple_white",
+            color_discrete_sequence=["#1f2937", "#9ca3af"]
+        )
+        st.plotly_chart(fig_act, use_container_width=True)
+        
+        fig_calls = px.line(
+            df_act,
+            x="Year",
+            y="VesselCalls",
+            title="Ocean-Going Vessel Calls",
+            template="simple_white",
+            color_discrete_sequence=["#374151"]
+        )
+        st.plotly_chart(fig_calls, use_container_width=True)
+        
+    elif analysis_category == "Ocean-Going Vessels":
+        st.markdown(f"#### OGV **{pollutant}** Emissions by Operating Mode")
+        fig_ogv = px.bar(
+            df_ogv, 
+            x="Year", 
+            y=pollutant, 
+            color="Mode", 
+            barmode="stack", 
+            title=f"OGV {pollutant} by Mode",
+            template="simple_white",
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        st.plotly_chart(fig_ogv, use_container_width=True)
+        
+    elif analysis_category == "Drayage Trucks":
+        st.markdown(f"#### Truck **{pollutant}** Emissions by Operating Mode")
+        fig_truck = px.bar(
+            df_truck, 
+            x="Year", 
+            y=pollutant, 
+            color="Mode", 
+            barmode="stack", 
+            title=f"Drayage Truck {pollutant} by Mode",
+            template="simple_white",
+            color_discrete_sequence=px.colors.qualitative.Set2
+        )
+        st.plotly_chart(fig_truck, use_container_width=True)
