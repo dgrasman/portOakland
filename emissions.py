@@ -87,11 +87,11 @@ data = [
 ]
 
 activity_data = [
-    {"Year": 2005, "Twenty-foot Equivalent Unit": 2273990, "VesselCalls": 1916, "TruckTrips": 2620483},
-    {"Year": 2012, "Twenty-foot Equivalent Unit": 2344392, "VesselCalls": 1812, "TruckTrips": 2339792},
-    {"Year": 2015, "Twenty-foot Equivalent Unit": 2277521, "VesselCalls": 1393, "TruckTrips": 2081130},
-    {"Year": 2017, "Twenty-foot Equivalent Unit": 2420837, "VesselCalls": 1596, "TruckTrips": 2081932},
-    {"Year": 2020, "Twenty-foot Equivalent Unit": 2461262, "VesselCalls": 1231, "TruckTrips": 2892052},
+    {"Year": 2005, "TEU": 2273990, "VesselCalls": 1916, "TruckTrips": 2620483},
+    {"Year": 2012, "TEU": 2344392, "VesselCalls": 1812, "TruckTrips": 2339792},
+    {"Year": 2015, "TEU": 2277521, "VesselCalls": 1393, "TruckTrips": 2081130},
+    {"Year": 2017, "TEU": 2420837, "VesselCalls": 1596, "TruckTrips": 2081932},
+    {"Year": 2020, "TEU": 2461262, "VesselCalls": 1231, "TruckTrips": 2892052},
 ]
 
 ogv_modes = [
