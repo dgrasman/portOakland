@@ -4,7 +4,6 @@ import plotly.express as px
 
 st.set_page_config(
     page_title="Port of Oakland Emissions Dashboard",
-    page_icon="🚢",
     layout="wide"
 )
 
@@ -42,7 +41,7 @@ pollutant = st.sidebar.selectbox(
 # Filter DataFrame
 filtered_df = df[df["Method"] == method].copy()
 
-st.title("🚢 Port of Oakland Seaport Emissions Dashboard")
+st.title("Port of Oakland Seaport Emissions Dashboard")
 st.caption(f"Visualizing **{pollutant}** trends ({method} Estimation Methodology)")
 
 # KPI Metrics Panel (Tracking against 2005 Baseline for Historical)
@@ -73,7 +72,7 @@ if method == "Historical":
 
 # Main Visualizations
 st.markdown("---")
-tab1, tab2 = st.tabs(["📊 Stacked Sector Trends", "📋 Raw Data & Aggregations"])
+tab1, tab2 = st.tabs(["Stacked Sector Trends", "Raw Data & Aggregations"])
 
 with tab1:
     fig = px.bar(
