@@ -305,28 +305,6 @@ with tab2:
             fig_shore = apply_clean_layout(fig_shore)
             st.plotly_chart(fig_shore, use_container_width=True)
 
-        # --- Renewable Energy Procurement ---
-        st.markdown("---")
-        st.markdown("## Renewable Energy Procurement")
-        st.markdown("""
-        The Port of Oakland operates as a publicly owned electric utility. This chart tracks the percentage of the Port's electricity procurement that comes from renewable and zero-carbon sources (such as geothermal, solar, and hydroelectric power).
-        """)
-        
-        if "RenewableEnergyPercent" in df_act.columns:
-            fig_renew = px.area(
-                df_act, 
-                x="Year", 
-                y="RenewableEnergyPercent", 
-                color_discrete_sequence=["#0ea5e9"]
-            )
-            fig_renew.update_traces(fillcolor='rgba(14, 165, 233, 0.3)', line=dict(width=3))
-            fig_renew.update_layout(
-                hovermode="x unified",
-                yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
-            )
-            fig_renew = apply_clean_layout(fig_renew)
-            st.plotly_chart(fig_renew, use_container_width=True)
-
         # --- Avoided Emissions Impact ---
         if "ShorePowerPluginRate" in df_act.columns and "RenewableEnergyPercent" in df_act.columns:
             st.markdown("---")
@@ -389,6 +367,28 @@ with tab2:
                     
                     fig_avoid = apply_clean_layout(fig_avoid)
                     st.plotly_chart(fig_avoid, use_container_width=True)
+
+        # --- Renewable Energy Procurement ---
+        st.markdown("---")
+        st.markdown("## Renewable Energy Procurement")
+        st.markdown("""
+        The Port of Oakland operates as a publicly owned electric utility. This chart tracks the percentage of the Port's electricity procurement that comes from renewable and zero-carbon sources (such as geothermal, solar, and hydroelectric power).
+        """)
+        
+        if "RenewableEnergyPercent" in df_act.columns:
+            fig_renew = px.area(
+                df_act, 
+                x="Year", 
+                y="RenewableEnergyPercent", 
+                color_discrete_sequence=["#0ea5e9"]
+            )
+            fig_renew.update_traces(fillcolor='rgba(14, 165, 233, 0.3)', line=dict(width=3))
+            fig_renew.update_layout(
+                hovermode="x unified",
+                yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
+            )
+            fig_renew = apply_clean_layout(fig_renew)
+            st.plotly_chart(fig_renew, use_container_width=True)
 
 # Footer
 st.markdown("---")
