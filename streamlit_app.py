@@ -32,9 +32,15 @@ method = st.sidebar.radio(
     )
 )
 
+metric_labels = {
+    "DPM": "Diesel Particulate Matter (DPM)",
+    "ROG": "Reactive Organic Gases (ROG)"
+}
+
 pollutant = st.sidebar.selectbox(
     "Metric",
     options=["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"],
+    format_func=lambda x: metric_labels.get(x, x),
     index=0
 )
 
