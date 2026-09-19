@@ -53,7 +53,6 @@ p, li, .stMarkdown {
 """, unsafe_allow_html=True)
 
 # --- Data Loading ---
-@st.cache_data
 def load_all_data():
     df = pd.read_csv("data/oakland_emissions_master.csv")
     try:
