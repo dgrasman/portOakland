@@ -82,7 +82,7 @@ with tab1:
         title=f"Annual {pollutant} Emissions by Source Category ({method} Method)",
         labels={pollutant: f"{pollutant} (tons/year)", "Year": "Inventory Year"},
         barmode="stack",
-        color_discrete_sequence=["#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"]
+        color_discrete_sequence=px.colors.qualitative.Set2
     )
     fig.update_layout(
         xaxis=dict(type='category'), 
