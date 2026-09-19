@@ -64,6 +64,16 @@ def load_all_data():
 
 df, df_act, df_ogv, df_truck = load_all_data()
 
+# Convert all emissions from US short tons to metric tonnes (MT)
+pollutants = ["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"]
+for col in pollutants:
+    if col in df.columns:
+        df[col] = df[col] * 0.907185
+    if df_ogv is not None and col in df_ogv.columns:
+        df_ogv[col] = df_ogv[col] * 0.907185
+    if df_truck is not None and col in df_truck.columns:
+        df_truck[col] = df_truck[col] * 0.907185
+
 # --- Page Header ---
 st.title("Port of Oakland Seaport Emissions")
 
@@ -127,8 +137,8 @@ if method == "Historical":
     pct_change = ((latest_val - base_val) / base_val * 100) if base_val > 0 else 0
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("2005 Baseline Total", f"{base_val:,.1f} tons")
-    col2.metric(f"{latest_year} Total", f"{latest_val:,.1f} tons", delta=f"{pct_change:.1f}%", delta_color="inverse")
+    col1.metric("2005 Baseline Total", f"{base_val:,.1f} MT")
+    col2.metric(f"{latest_year} Total", f"{latest_val:,.1f} MT", delta=f"{pct_change:.1f}%", delta_color="inverse")
     
     if df_act is not None:
         common_years = set(filtered_df["Year"]).intersection(set(df_act["Year"]))
@@ -139,9 +149,10 @@ if method == "Historical":
             intensity = latest_emissions_val / latest_teu
             
             if intensity < 0.01:
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 2000:.2f} lbs/TEU")
+                # 1 Metric Tonne = 1000 kg
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/TEU")
             else:
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} tons/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/TEU")
         else:
             col3.metric("Emissions Intensity", "N/A")
     else:
