@@ -9,7 +9,7 @@ st.set_page_config(
 
 # Load Data
 @st.cache_data
-def load_data():
+def load_all_data():
     df = pd.read_csv("data/oakland_emissions_master.csv")
     try:
         df_act = pd.read_csv("data/activity_metrics.csv")
@@ -19,7 +19,7 @@ def load_data():
         df_act, df_ogv, df_truck = None, None, None
     return df, df_act, df_ogv, df_truck
 
-df, df_act, df_ogv, df_truck = load_data()
+df, df_act, df_ogv, df_truck = load_all_data()
 
 # Sidebar Navigation & Global Filters
 st.sidebar.title("Parameters")
