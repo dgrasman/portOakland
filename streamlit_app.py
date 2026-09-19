@@ -193,8 +193,10 @@ if df_act is not None:
         df_act, 
         x="Year", 
         y=["TEU", "TruckTrips"], 
-        color_discrete_sequence=["#1f2937", "#9ca3af"]
+        color_discrete_sequence=["#0f172a", "#3b82f6"] # Deep slate and bright blue for contrast
     )
+    fig_act.update_traces(line=dict(width=3))
+    fig_act.update_layout(hovermode="x unified")
     fig_act = apply_clean_layout(fig_act)
     st.plotly_chart(fig_act, use_container_width=True)
 
