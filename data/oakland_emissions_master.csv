@@ -1,0 +1,61 @@
+Year,Method,Category,ROG,CO,NOx,PM10,PM2_5,DPM,SOx,CO2e
+2005,Historical,Ocean-Going Vessels,117.0,235.0,2484.0,219.5,201.9,208.5,1413.0,144141.0
+2005,Historical,Harbor Craft,22.0,83.0,344.8,13.4,12.3,13.4,3.0,20053.0
+2005,Historical,Cargo Handling Equipment,53.0,408.0,766.0,21.7,19.9,21.2,7.0,37486.0
+2005,Historical,Drayage Trucks,49.0,149.0,334.0,15.9,14.6,15.9,2.0,21676.0
+2005,Historical,Locomotives,7.0,11.0,76.0,2.0,1.8,2.0,2.0,1220.0
+2005,Historical,Other Off-Road,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+2012,Historical,Ocean-Going Vessels,176.0,232.0,2591.0,66.9,62.1,57.4,289.0,134332.0
+2012,Historical,Harbor Craft,25.0,95.0,235.0,9.3,9.0,9.3,0.2,20377.0
+2012,Historical,Cargo Handling Equipment,35.0,207.0,413.0,8.0,7.4,7.9,0.6,38667.0
+2012,Historical,Drayage Trucks,11.0,43.0,95.0,2.1,1.6,1.5,0.2,20697.0
+2012,Historical,Locomotives,1.0,2.0,19.0,0.5,0.4,0.5,0.01,935.0
+2012,Historical,Other Off-Road,1.0,4.0,4.0,0.3,0.3,0.3,0.004,370.0
+2015,Historical,Ocean-Going Vessels,182.0,259.0,2715.0,58.7,54.3,51.8,141.0,170405.0
+2015,Historical,Harbor Craft,23.0,97.0,166.0,6.6,6.4,6.2,0.1,17039.0
+2015,Historical,Cargo Handling Equipment,43.0,253.0,332.0,3.9,3.6,3.7,0.6,32713.0
+2015,Historical,Drayage Trucks,5.0,16.0,91.0,0.8,0.4,0.2,0.2,18761.0
+2015,Historical,Locomotives,0.2,2.0,14.0,0.2,0.2,0.2,0.01,645.0
+2015,Historical,Other Off-Road,1.0,12.0,11.0,0.6,0.5,0.6,0.01,1191.0
+2017,Historical,Ocean-Going Vessels,177.1,219.3,2344.6,49.5,45.9,42.2,128.9,133680.0
+2017,Historical,Harbor Craft,21.0,89.1,161.7,6.5,6.3,6.5,0.15,17739.0
+2017,Historical,Cargo Handling Equipment,18.6,162.2,173.0,1.7,1.6,1.6,0.33,35520.0
+2017,Historical,Drayage Trucks,4.7,23.9,79.9,0.9,0.5,0.3,0.18,19805.0
+2017,Historical,Locomotives,0.8,1.2,16.8,0.3,0.2,0.3,0.01,703.0
+2017,Historical,Other Off-Road,0.8,40.2,10.5,0.3,0.3,0.3,0.01,2228.0
+2020,Historical,Ocean-Going Vessels,145.4,217.1,1954.2,32.7,30.1,27.7,69.0,115437.0
+2020,Historical,Harbor Craft,20.9,101.5,156.0,5.3,5.1,5.3,0.17,19772.0
+2020,Historical,Cargo Handling Equipment,39.7,116.2,195.9,2.8,2.5,2.5,0.41,44506.0
+2020,Historical,Drayage Trucks,4.7,30.0,89.3,1.7,0.7,0.2,0.23,25782.0
+2020,Historical,Locomotives,0.6,1.2,6.5,0.1,0.1,0.1,0.0,491.0
+2020,Historical,Other Off-Road,1.4,40.1,3.0,0.1,0.1,0.0,0.01,637.0
+2023,Historical,Ocean-Going Vessels,99.0,184.9,1554.3,29.7,27.3,23.0,62.5,110680.0
+2023,Historical,Harbor Craft,3.8,22.0,101.4,1.8,1.7,1.8,0.16,16705.0
+2023,Historical,Cargo Handling Equipment,33.5,139.8,179.4,2.6,2.4,2.5,0.4,43514.0
+2023,Historical,Drayage Trucks,2.2,32.4,55.1,1.6,0.6,0.1,0.23,25426.0
+2023,Historical,Locomotives,0.2,0.4,3.1,0.05,0.04,0.05,0.0,230.0
+2023,Historical,Other Off-Road,1.4,40.1,3.0,0.1,0.1,0.05,0.01,637.0
+2024,Historical,Ocean-Going Vessels,107.1,203.0,1607.0,32.3,29.7,25.1,68.0,120943.0
+2024,Historical,Harbor Craft,3.3,24.1,84.0,1.6,1.5,1.6,0.19,19877.0
+2024,Historical,Cargo Handling Equipment,28.7,138.2,122.7,2.4,2.2,2.3,0.39,43083.0
+2024,Historical,Drayage Trucks,2.3,33.7,52.3,1.8,0.6,0.1,0.09,27837.0
+2024,Historical,Locomotives,0.2,0.4,2.8,0.04,0.04,0.04,0.0,358.0
+2024,Historical,Other Off-Road,1.4,40.1,3.0,0.1,0.1,0.05,0.01,637.0
+2020,Best Estimate,Ocean-Going Vessels,88.0,162.0,1382.0,25.3,23.2,18.9,64.0,91668.0
+2020,Best Estimate,Harbor Craft,4.0,16.0,111.0,2.1,2.0,2.1,0.2,20692.0
+2020,Best Estimate,Cargo Handling Equipment,40.0,116.0,196.0,2.8,2.5,2.5,0.4,44506.0
+2020,Best Estimate,Drayage Trucks,5.0,30.0,89.0,1.7,0.7,0.2,0.2,25782.0
+2020,Best Estimate,Locomotives,1.0,1.0,6.0,0.1,0.1,0.1,0.0,491.0
+2020,Best Estimate,Other Off-Road,1.0,40.0,3.0,0.1,0.1,0.0,0.0,637.0
+2023,Best Estimate,Ocean-Going Vessels,69.4,130.2,1078.8,21.6,19.9,15.0,55.1,81102.0
+2023,Best Estimate,Harbor Craft,2.3,14.7,64.1,1.2,1.1,1.2,0.1,11333.0
+2023,Best Estimate,Cargo Handling Equipment,33.5,139.8,179.5,2.6,2.4,2.5,0.4,43514.0
+2023,Best Estimate,Drayage Trucks,2.2,32.4,55.1,1.6,0.6,0.1,0.2,25426.0
+2023,Best Estimate,Locomotives,0.2,0.4,3.1,0.05,0.04,0.05,0.0,230.0
+2023,Best Estimate,Other Off-Road,1.4,40.1,3.0,0.1,0.1,0.05,0.01,637.0
+2024,Best Estimate,Ocean-Going Vessels,73.8,139.2,1092.9,22.7,20.9,15.8,57.3,85151.0
+2024,Best Estimate,Harbor Craft,2.2,16.5,57.1,1.1,1.1,1.1,0.1,12838.0
+2024,Best Estimate,Cargo Handling Equipment,28.7,138.2,122.7,2.4,2.2,2.3,0.4,43083.0
+2024,Best Estimate,Drayage Trucks,2.3,33.7,52.3,1.8,0.6,0.1,0.1,27837.0
+2024,Best Estimate,Locomotives,0.2,0.4,2.8,0.04,0.04,0.04,0.0,358.0
+2024,Best Estimate,Other Off-Road,1.4,40.1,3.0,0.1,0.1,0.05,0.01,637.0
