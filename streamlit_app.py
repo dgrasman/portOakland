@@ -84,14 +84,21 @@ if method == "Historical":
         col3.metric("Status", "Tracked Criteria/GHG")
         
     # Calculate Emissions Intensity
-    if df_act is not None and latest_year in df_act["Year"].values:
-        latest_teu = df_act[df_act["Year"] == latest_year]["TEU"].values[0]
-        intensity = latest_val / latest_teu
-        # For trace pollutants, tons/TEU is tiny, so we format accordingly
-        if intensity < 0.01:
-            col4.metric("Emissions Intensity", f"{intensity * 2000:.2f} lbs/TEU")
+    if df_act is not None:
+        common_years = set(filtered_df["Year"]).intersection(set(df_act["Year"]))
+        if common_years:
+            latest_common_year = max(common_years)
+            latest_teu = df_act[df_act["Year"] == latest_common_year]["TEU"].values[0]
+            latest_emissions_val = filtered_df[filtered_df["Year"] == latest_common_year][pollutant].sum()
+            intensity = latest_emissions_val / latest_teu
+            
+            # For trace pollutants, tons/TEU is tiny, so we format accordingly
+            if intensity < 0.01:
+                col4.metric(f"Intensity ({latest_common_year})", f"{intensity * 2000:.2f} lbs/TEU")
+            else:
+                col4.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} tons/TEU")
         else:
-            col4.metric("Emissions Intensity", f"{intensity:.4f} tons/TEU")
+            col4.metric("Emissions Intensity", "N/A")
     else:
         col4.metric("Emissions Intensity", "N/A")
 
