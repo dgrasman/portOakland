@@ -217,8 +217,49 @@ with tab1:
         fig_act = apply_clean_layout(fig_act)
         st.plotly_chart(fig_act, use_container_width=True)
 
-    with tab2:
-    # --- Shore Power Plug-in Rates ---
+    # --- Ocean-Going Vessels (OGV) ---
+    st.markdown("---")
+    st.markdown(f"## Ocean-Going Vessel **{pollutant}** by Mode")
+    st.markdown(f"""
+    Ocean-Going Vessels (OGVs) are traditionally the largest single source of emissions at the Port. However, their emissions profile isn't just generated while docked.
+    
+    The geographic domain for tracking OGV **{pollutant}** begins the moment a ship passes under the Golden Gate Bridge. This chart breaks down emissions by the ship's specific operating mode, illustrating the massive impact of Shore Power (plugging into the electrical grid while at Berth) and vessel speed reduction zones.
+    """)
+    
+    fig_ogv = px.bar(
+        df_ogv, 
+        x="Year", 
+        y=pollutant, 
+        color="Mode", 
+        barmode="stack", 
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    fig_ogv = apply_clean_layout(fig_ogv)
+    st.plotly_chart(fig_ogv, use_container_width=True)
+
+    # --- Drayage Trucks ---
+    st.markdown("---")
+    st.markdown(f"## Drayage Truck **{pollutant}** by Mode")
+    st.markdown(f"""
+    Drayage trucks move containers in and out of the terminal gates. Tracking their operating modes—whether they are idling in queue at the gate or actively driving on surface roads—helps identify operational bottlenecks.
+    
+    *Note: A sharp increase in estimated emissions or activity may be the result of updated data collection methodologies (e.g., switching to automated eModal gate counts) rather than a physical spike in traffic.*
+    """)
+    
+    fig_truck = px.bar(
+        df_truck, 
+        x="Year", 
+        y=pollutant, 
+        color="Mode", 
+        barmode="stack", 
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    fig_truck = apply_clean_layout(fig_truck)
+    st.plotly_chart(fig_truck, use_container_width=True)
+
+with tab2:
+    if df_act is not None:
+        # --- Shore Power Plug-in Rates ---
         st.markdown("---")
         st.markdown("## Shore Power Plug-in Rates")
         st.markdown("""
@@ -264,70 +305,27 @@ with tab1:
             fig_shore = apply_clean_layout(fig_shore)
             st.plotly_chart(fig_shore, use_container_width=True)
 
-    
-    # --- Renewable Energy Procurement ---
-    st.markdown("---")
-    st.markdown("## Renewable Energy Procurement")
-    st.markdown("""
-    The Port of Oakland operates as a publicly owned electric utility. This chart tracks the percentage of the Port's electricity procurement that comes from renewable and zero-carbon sources (such as geothermal, solar, and hydroelectric power).
-    """)
-    
-    if "RenewableEnergyPercent" in df_act.columns:
-        fig_renew = px.area(
-            df_act, 
-            x="Year", 
-            y="RenewableEnergyPercent", 
-            color_discrete_sequence=["#0ea5e9"]
-        )
-        fig_renew.update_traces(fillcolor='rgba(14, 165, 233, 0.3)', line=dict(width=3))
-        fig_renew.update_layout(
-            hovermode="x unified",
-            yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
-        )
-        fig_renew = apply_clean_layout(fig_renew)
-        st.plotly_chart(fig_renew, use_container_width=True)
-
-with tab1:
-    # --- Ocean-Going Vessels (OGV) ---
+        # --- Renewable Energy Procurement ---
         st.markdown("---")
-        st.markdown(f"## Ocean-Going Vessel **{pollutant}** by Mode")
-        st.markdown(f"""
-        Ocean-Going Vessels (OGVs) are traditionally the largest single source of emissions at the Port. However, their emissions profile isn't just generated while docked.
-    
-        The geographic domain for tracking OGV **{pollutant}** begins the moment a ship passes under the Golden Gate Bridge. This chart breaks down emissions by the ship's specific operating mode, illustrating the massive impact of Shore Power (plugging into the electrical grid while at Berth) and vessel speed reduction zones.
+        st.markdown("## Renewable Energy Procurement")
+        st.markdown("""
+        The Port of Oakland operates as a publicly owned electric utility. This chart tracks the percentage of the Port's electricity procurement that comes from renewable and zero-carbon sources (such as geothermal, solar, and hydroelectric power).
         """)
-    
-        fig_ogv = px.bar(
-            df_ogv, 
-            x="Year", 
-            y=pollutant, 
-            color="Mode", 
-            barmode="stack", 
-            color_discrete_sequence=px.colors.qualitative.Set2
-        )
-        fig_ogv = apply_clean_layout(fig_ogv)
-        st.plotly_chart(fig_ogv, use_container_width=True)
-
-        # --- Drayage Trucks ---
-        st.markdown("---")
-        st.markdown(f"## Drayage Truck **{pollutant}** by Mode")
-        st.markdown(f"""
-        Drayage trucks move containers in and out of the terminal gates. Tracking their operating modes—whether they are idling in queue at the gate or actively driving on surface roads—helps identify operational bottlenecks.
-    
-        *Note: A sharp increase in estimated emissions or activity may be the result of updated data collection methodologies (e.g., switching to automated eModal gate counts) rather than a physical spike in traffic.*
-        """)
-    
-        fig_truck = px.bar(
-            df_truck, 
-            x="Year", 
-            y=pollutant, 
-            color="Mode", 
-            barmode="stack", 
-            color_discrete_sequence=px.colors.qualitative.Set2
-        )
-        fig_truck = apply_clean_layout(fig_truck)
-        st.plotly_chart(fig_truck, use_container_width=True)
-
+        
+        if "RenewableEnergyPercent" in df_act.columns:
+            fig_renew = px.area(
+                df_act, 
+                x="Year", 
+                y="RenewableEnergyPercent", 
+                color_discrete_sequence=["#0ea5e9"]
+            )
+            fig_renew.update_traces(fillcolor='rgba(14, 165, 233, 0.3)', line=dict(width=3))
+            fig_renew.update_layout(
+                hovermode="x unified",
+                yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
+            )
+            fig_renew = apply_clean_layout(fig_renew)
+            st.plotly_chart(fig_renew, use_container_width=True)
 
 # Footer
 st.markdown("---")
