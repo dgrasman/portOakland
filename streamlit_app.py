@@ -66,22 +66,9 @@ if method == "Historical":
     latest_val = latest_year_df[pollutant].sum()
     pct_change = ((latest_val - base_val) / base_val) * 100
 
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3 = st.columns(3)
     col1.metric("2005 Baseline Total", f"{base_val:,.1f} tons")
     col2.metric(f"{latest_year} Total", f"{latest_val:,.1f} tons", delta=f"{pct_change:.1f}%", delta_color="inverse")
-    
-    # Check MAQIP Milestones
-    if pollutant == "DPM":
-        status = "Achieved (Goal: -85%)" if pct_change <= -85 else "In Progress"
-        col3.metric("MAQIP 2020 Target", status)
-    elif pollutant == "NOx":
-        status = "Achieved (Goal: -34%)" if pct_change <= -34 else "In Progress"
-        col3.metric("MAQIP 2020 Target", status)
-    elif pollutant == "SOx":
-        status = "Achieved (Goal: -95%)" if pct_change <= -95 else "In Progress"
-        col3.metric("MAQIP 2020 Target", status)
-    else:
-        col3.metric("Status", "Tracked Criteria/GHG")
         
     # Calculate Emissions Intensity
     if df_act is not None:
@@ -94,13 +81,13 @@ if method == "Historical":
             
             # For trace pollutants, tons/TEU is tiny, so we format accordingly
             if intensity < 0.01:
-                col4.metric(f"Intensity ({latest_common_year})", f"{intensity * 2000:.2f} lbs/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 2000:.2f} lbs/TEU")
             else:
-                col4.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} tons/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} tons/TEU")
         else:
-            col4.metric("Emissions Intensity", "N/A")
+            col3.metric("Emissions Intensity", "N/A")
     else:
-        col4.metric("Emissions Intensity", "N/A")
+        col3.metric("Emissions Intensity", "N/A")
 
 # Main Visualizations
 tab1, tab2 = st.tabs(["Stacked Sector Trends", "Raw Data & Aggregations"])
