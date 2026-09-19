@@ -16,7 +16,7 @@ def load_data():
 df = load_data()
 
 # Sidebar Navigation & Global Filters
-st.sidebar.title("Navigation & Parameters")
+st.sidebar.title("Parameters")
 st.sidebar.markdown(
     "Data synthesized from official [Port of Oakland Seaport Air Emissions Inventories]"
     "(https://www.portofoakland.com/environment/environmental-stewardship/seaport-air-emissions-inventory/) "
@@ -24,7 +24,7 @@ st.sidebar.markdown(
 )
 
 method = st.sidebar.radio(
-    "Select Methodological Paradigm:",
+    "Methodology",
     options=["Historical", "Best Estimate"],
     help=(
         "Historical: Constant 2005 modeling assumptions (used to track MAQIP goals).\n"
@@ -33,7 +33,7 @@ method = st.sidebar.radio(
 )
 
 pollutant = st.sidebar.selectbox(
-    "Select Emission Metric:",
+    "Metric",
     options=["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"],
     index=0
 )
@@ -71,7 +71,6 @@ if method == "Historical":
         col3.metric("Status", "Tracked Criteria/GHG")
 
 # Main Visualizations
-st.markdown("---")
 tab1, tab2 = st.tabs(["Stacked Sector Trends", "Raw Data & Aggregations"])
 
 with tab1:
@@ -83,9 +82,13 @@ with tab1:
         title=f"Annual {pollutant} Emissions by Source Category ({method} Method)",
         labels={pollutant: f"{pollutant} (tons/year)", "Year": "Inventory Year"},
         barmode="stack",
-        color_discrete_sequence=px.colors.qualitative.Safe
+        color_discrete_sequence=["#1f2937", "#374151", "#4b5563", "#6b7280", "#9ca3af", "#d1d5db"]
     )
-    fig.update_layout(xaxis=dict(type='category'), hovermode="x unified")
+    fig.update_layout(
+        xaxis=dict(type='category'), 
+        hovermode="x unified",
+        template="simple_white"
+    )
     st.plotly_chart(fig, use_container_width=True)
 
 with tab2:
