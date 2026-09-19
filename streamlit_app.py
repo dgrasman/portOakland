@@ -144,15 +144,15 @@ if method == "Historical":
         common_years = set(filtered_df["Year"]).intersection(set(df_act["Year"]))
         if common_years:
             latest_common_year = max(common_years)
-            latest_teu = df_act[df_act["Year"] == latest_common_year]["TEU"].values[0]
+            latest_teu = df_act[df_act["Year"] == latest_common_year]["Twenty-foot Equivalent Unit"].values[0]
             latest_emissions_val = filtered_df[filtered_df["Year"] == latest_common_year][pollutant].sum()
             intensity = latest_emissions_val / latest_teu
             
             if intensity < 0.01:
                 # 1 Metric Tonne = 1000 kg
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/Twenty-foot Equivalent Unit")
             else:
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/TEU")
+                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/Twenty-foot Equivalent Unit")
         else:
             col3.metric("Emissions Intensity", "N/A")
     else:
@@ -186,13 +186,13 @@ if df_act is not None:
     st.markdown("""
     To understand emissions scaling, we have to look at overall Port activity. If throughput increases, we expect emissions to increase unless operational efficiencies or cleaner technologies are introduced.
     
-    This chart tracks the volume of cargo processed (TEUs) against the number of truck trips generated.
+    This chart tracks the volume of cargo processed (Twenty-foot Equivalent Units) against the number of truck trips generated.
     """)
     
     fig_act = px.line(
         df_act, 
         x="Year", 
-        y=["TEU", "TruckTrips"], 
+        y=["Twenty-foot Equivalent Unit", "TruckTrips"], 
         color_discrete_sequence=["#0f172a", "#3b82f6"] # Deep slate and bright blue for contrast
     )
     fig_act.update_traces(line=dict(width=3))
