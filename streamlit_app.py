@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 st.set_page_config(
     page_title="Port of Oakland Seaport Emissions",
@@ -227,17 +229,39 @@ with tab1:
         """)
     
         if "ShorePowerPluginRate" in df_act.columns:
-            fig_shore = px.area(
-                df_act, 
-                x="Year", 
-                y="ShorePowerPluginRate", 
-                color_discrete_sequence=["#10b981"] # Green for environmental progress
+            # Calculate the absolute number of plugged-in vessels
+            df_act["PluggedInVessels"] = df_act["VesselCalls"] * (df_act["ShorePowerPluginRate"] / 100)
+            
+            fig_shore = make_subplots(specs=[[{"secondary_y": True}]])
+            
+            fig_shore.add_trace(
+                go.Bar(
+                    x=df_act["Year"], 
+                    y=df_act["VesselCalls"], 
+                    name="Total Vessel Calls",
+                    marker_color="#cbd5e1"
+                ),
+                secondary_y=False,
             )
-            fig_shore.update_traces(fillcolor='rgba(16, 185, 129, 0.3)', line=dict(width=3))
+            
+            fig_shore.add_trace(
+                go.Scatter(
+                    x=df_act["Year"], 
+                    y=df_act["PluggedInVessels"], 
+                    name="Plugged-In Vessels",
+                    mode='lines+markers',
+                    line=dict(color="#10b981", width=3)
+                ),
+                secondary_y=True,
+            )
+            
             fig_shore.update_layout(
                 hovermode="x unified",
-                yaxis=dict(title="Plug-in Rate (%)", range=[0, 100])
+                barmode='group'
             )
+            fig_shore.update_yaxes(title_text="Total Vessel Calls", secondary_y=False)
+            fig_shore.update_yaxes(title_text="Plugged-In Vessels", secondary_y=True)
+            
             fig_shore = apply_clean_layout(fig_shore)
             st.plotly_chart(fig_shore, use_container_width=True)
 
