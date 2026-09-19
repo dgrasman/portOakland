@@ -272,7 +272,7 @@ with tab2:
             # Calculate the absolute number of plugged-in vessels
             df_act["PluggedInVessels"] = df_act["VesselCalls"] * (df_act["ShorePowerPluginRate"] / 100)
             
-            fig_shore = make_subplots(specs=[[{"secondary_y": True}]])
+            fig_shore = make_subplots(specs=[[{"secondary_y": False}]])
             
             fig_shore.add_trace(
                 go.Bar(
@@ -281,7 +281,6 @@ with tab2:
                     name="Total Vessel Calls",
                     marker_color="#cbd5e1"
                 ),
-                secondary_y=False,
             )
             
             fig_shore.add_trace(
@@ -292,15 +291,13 @@ with tab2:
                     mode='lines+markers',
                     line=dict(color="#10b981", width=3)
                 ),
-                secondary_y=True,
             )
             
             fig_shore.update_layout(
                 hovermode="x unified",
                 barmode='group'
             )
-            fig_shore.update_yaxes(title_text="Total Vessel Calls", secondary_y=False)
-            fig_shore.update_yaxes(title_text="Plugged-In Vessels", secondary_y=True)
+            fig_shore.update_yaxes(title_text="Vessels")
             
             fig_shore = apply_clean_layout(fig_shore)
             st.plotly_chart(fig_shore, use_container_width=True)
