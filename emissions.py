@@ -1,10 +1,6 @@
 import os
 import pandas as pd
 
-# -------------------------------------------------------------------------
-# Consolidated Port of Oakland Emissions Data (2005 - 2024)
-# Sources: Port of Oakland Seaport Air Emissions Inventories (2005-2024)
-# -------------------------------------------------------------------------
 
 data = [
     # --- 2005 BASELINE (Historical Method) ---
