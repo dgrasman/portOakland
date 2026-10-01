@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from bunker_scraper import get_live_bunker_prices
 
 st.set_page_config(
     page_title="Port of Oakland Seaport Emissions",
@@ -258,6 +259,19 @@ with tab1:
     st.plotly_chart(fig_truck, use_container_width=True)
 
 with tab2:
+    st.markdown("---")
+    st.markdown("## Live Bunker Fuel Prices")
+    st.markdown("Global Average Prices ($/mt) fetched directly from Ship & Bunker.")
+    
+    with st.spinner("Fetching live prices..."):
+        try:
+            prices = get_live_bunker_prices()
+            bcol1, bcol2 = st.columns(2)
+            bcol1.metric("VLSFO (Very Low Sulfur Fuel Oil)", f"${prices['VLSFO']:,.2f}")
+            bcol2.metric("MGO (Marine Gas Oil)", f"${prices['MGO']:,.2f}")
+        except Exception as e:
+            st.warning("Could not fetch live bunker prices at this time.")
+
     if df_act is not None:
         # --- Shore Power Plug-in Rates ---
         st.markdown("---")

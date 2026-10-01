@@ -16,3 +16,7 @@ ENV/
 
 # Streamlit local config/secrets
 .streamlit/secrets.toml
+
+# Database files
+*.db
+*.sqlite3

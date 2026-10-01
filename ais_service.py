@@ -3,7 +3,7 @@ import websockets
 import json
 import os
 from dotenv import load_dotenv
-from db_manager import init_db, log_event_to_db
+from db_manager import init_db, log_event_to_db, upsert_vessel_particulars
 
 # Load variables from the .env file
 load_dotenv()
@@ -60,18 +60,37 @@ async def listen_to_ais_stream():
                             "Name": meta.get("ShipName", "Unknown").strip(), 
                             "Destination": "Unknown",
                             "LastStatus": "Unknown",
-                            "LastLocation": "Unknown"
+                            "LastLocation": "Unknown",
+                            "is_commercial": False # Default to False until proven otherwise
                         }
 
                     # Update Destination if we receive Static Data
                     if msg_type == "ShipStaticData":
                         static_data = message.get("Message", {}).get("ShipStaticData", {})
+                        
+                        # Get Destination
                         destination = static_data.get("Destination", "Unknown").strip().upper()
                         if destination:
                             live_ships[mmsi]["Destination"] = destination
+                            
+                        # Get Ship Type & Dimensions
+                        ship_type_code = static_data.get("Type", 0)
+                        dimension = static_data.get("Dimension", {})
+                        length = dimension.get("A", 0) + dimension.get("B", 0)
+                        width = dimension.get("C", 0) + dimension.get("D", 0)
+                        
+                        # Save to DB and check if it's a Cargo/Tanker ship
+                        is_commercial = upsert_vessel_particulars(
+                            mmsi, live_ships[mmsi]["Name"], ship_type_code, length, width
+                        )
+                        live_ships[mmsi]["is_commercial"] = is_commercial
 
                     # Update Location and Status if position report received
                     if msg_type == "PositionReport":
+                        # Only process Commercial Ships (Cargo/Tankers)
+                        if not live_ships[mmsi].get("is_commercial"):
+                            continue
+                            
                         report = message.get("Message", {}).get("PositionReport", {})
                         nav_status = report.get("NavigationalStatus", "Unknown")
                         speed = report.get("Sog", 0) # Speed Over Ground
