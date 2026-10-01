@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from bunker_scraper import get_live_bunker_prices, get_historical_usda_bunker_prices
+from bunker_scraper import get_live_bunker_prices
 
 st.set_page_config(
     page_title="Port of Oakland Seaport Emissions",
@@ -55,12 +55,24 @@ p, li, .stMarkdown {
 
 # --- Data Loading ---
 def load_all_data():
+    import sqlite3
     df = pd.read_csv("data/oakland_emissions_master.csv")
     try:
         df_act = pd.read_csv("data/activity_metrics.csv")
         df_ogv = pd.read_csv("data/ogv_modes.csv")
         df_truck = pd.read_csv("data/truck_modes.csv")
-        df_fuel = get_historical_usda_bunker_prices()
+        
+        # Pull the live daily trend from the database instead of static CSV
+        try:
+            conn = sqlite3.connect("data/port_traffic.db")
+            df_fuel = pd.read_sql_query("SELECT * FROM daily_bunker_prices ORDER BY date", conn)
+            conn.close()
+            # If the database is completely empty (no data collected yet today)
+            if df_fuel.empty:
+                df_fuel = None
+        except Exception:
+            df_fuel = None
+            
     except FileNotFoundError:
         df_act, df_ogv, df_truck, df_fuel = None, None, None, None
     return df, df_act, df_ogv, df_truck, df_fuel
@@ -275,17 +287,18 @@ with tab2:
             
     if df_fuel is not None:
         st.markdown("<br>", unsafe_allow_html=True)
-        # The USDA dataset columns are "Date", "VLSFO price", "MGO price", "IFO 380 price"
-        # We will plot the columns that contain "price"
-        price_cols = [col for col in df_fuel.columns if "price" in col.lower()]
+        # Get all columns except 'date' to plot dynamically
+        fuel_cols = [col for col in df_fuel.columns if col != 'date']
         
-        fig_fuel = px.line(df_fuel, x="Date", y=price_cols, 
-                           title="Authentic USDA Historical Bunker Prices ($/mt)",
+        fig_fuel = px.line(df_fuel, x="date", y=fuel_cols,
+                           title="Live Daily Bunker Fuel Prices ($/mt)",
+                           markers=True,
                            labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
-        fig_fuel.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+        # Make the x-axis display nicely for daily data
+        fig_fuel.update_xaxes(title="Date")
         st.plotly_chart(fig_fuel, use_container_width=True)
     else:
-        st.error("Failed to load historical USDA bunker prices. The USDA dataset might be temporarily unavailable or blocking the connection.")
+        st.info("No daily bunker prices collected yet. The chart will appear once the scraper runs today!")
 
     if df_act is not None:
         # --- Shore Power Plug-in Rates ---

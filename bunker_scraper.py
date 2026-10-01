@@ -51,41 +51,8 @@ def get_live_bunker_prices():
             "MGO": 850.00     # Estimated $/mt
         }
 
-def get_historical_usda_bunker_prices():
-    """
-    Downloads the authentic historical daily bunker fuel prices dataset 
-    from the USDA Agricultural Marketing Service (AMS) Open Data Portal.
-    """
-    url = "https://agtransport.usda.gov/api/views/y4ft-fdwn/rows.csv?accessType=DOWNLOAD"
-    try:
-        # USDA sometimes blocks default Python urllib User-Agents
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-        }
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        
-        import io
-        df = pd.read_csv(io.StringIO(response.text))
-        
-        # Ensure the date column is properly formatted for our charts
-        if 'Date' in df.columns:
-            df['Date'] = pd.to_datetime(df['Date'])
-            df = df.sort_values(by='Date')
-            
-        return df
-    except Exception as e:
-        print(f"Error fetching USDA dataset: {e}")
-        return None
-
 if __name__ == "__main__":
     prices = get_live_bunker_prices()
     print("Live Bunker Prices ($/mt):")
     print(f"VLSFO: ${prices['VLSFO']}")
     print(f"MGO: ${prices['MGO']}")
-    
-    print("\nFetching USDA Historical Data...")
-    usda_df = get_historical_usda_bunker_prices()
-    if usda_df is not None:
-        print(f"Successfully loaded {len(usda_df)} historical records from USDA!")
-        print(usda_df.head())

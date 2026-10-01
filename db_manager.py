@@ -44,7 +44,12 @@ def init_db():
         CREATE TABLE IF NOT EXISTS daily_bunker_prices (
             date DATE PRIMARY KEY,
             vlsfo_price REAL,
-            mgo_price REAL
+            mgo_price REAL,
+            ifo380_price REAL,
+            lng_price REAL,
+            methanol_price REAL,
+            ammonia_price REAL,
+            biofuel_price REAL
         )
     ''')
     
@@ -133,7 +138,7 @@ def log_event_to_db(mmsi, name, dest, status, location, speed):
     conn.close()
     print(f"[SAVED TO DB]: {name} is now {status} at {location}")
 
-def log_daily_bunker_price(vlsfo, mgo):
+def log_daily_bunker_price(vlsfo, mgo, ifo380=None, lng=None, methanol=None, ammonia=None, biofuel=None):
     """Saves the daily closing price to the database, ignoring if already saved today."""
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -143,10 +148,10 @@ def log_daily_bunker_price(vlsfo, mgo):
     
     # ON CONFLICT DO NOTHING ensures we only save the first price fetched each day
     cursor.execute('''
-        INSERT INTO daily_bunker_prices (date, vlsfo_price, mgo_price)
-        VALUES (?, ?, ?)
+        INSERT INTO daily_bunker_prices (date, vlsfo_price, mgo_price, ifo380_price, lng_price, methanol_price, ammonia_price, biofuel_price)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(date) DO NOTHING
-    ''', (today, vlsfo, mgo))
+    ''', (today, vlsfo, mgo, ifo380, lng, methanol, ammonia, biofuel))
     
     if cursor.rowcount > 0:
         print(f"[SAVED TO DB]: Logged today's bunker prices - VLSFO: ${vlsfo}, MGO: ${mgo}")
