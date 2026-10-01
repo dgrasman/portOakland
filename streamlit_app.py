@@ -60,11 +60,12 @@ def load_all_data():
         df_act = pd.read_csv("data/activity_metrics.csv")
         df_ogv = pd.read_csv("data/ogv_modes.csv")
         df_truck = pd.read_csv("data/truck_modes.csv")
+        df_fuel = pd.read_csv("data/historical_bunker_prices.csv")
     except FileNotFoundError:
-        df_act, df_ogv, df_truck = None, None, None
-    return df, df_act, df_ogv, df_truck
+        df_act, df_ogv, df_truck, df_fuel = None, None, None, None
+    return df, df_act, df_ogv, df_truck, df_fuel
 
-df, df_act, df_ogv, df_truck = load_all_data()
+df, df_act, df_ogv, df_truck, df_fuel = load_all_data()
 
 # Convert all emissions from US short tons to metric tonnes (MT)
 pollutants = ["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"]
@@ -271,6 +272,15 @@ with tab2:
             bcol2.metric("MGO (Marine Gas Oil)", f"${prices['MGO']:,.2f}")
         except Exception as e:
             st.warning("Could not fetch live bunker prices at this time.")
+            
+    if df_fuel is not None:
+        st.markdown("<br>", unsafe_allow_html=True)
+        fig_fuel = px.line(df_fuel, x="Year", y=["VLSFO", "MGO"], 
+                           title="Historical Annual Average Fuel Prices ($/mt)",
+                           markers=True,
+                           labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
+        fig_fuel.update_layout(xaxis=dict(tickmode='linear', dtick=1))
+        st.plotly_chart(fig_fuel, use_container_width=True)
 
     if df_act is not None:
         # --- Shore Power Plug-in Rates ---

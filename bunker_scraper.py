@@ -1,5 +1,6 @@
 import pandas as pd
 import requests
+from db_manager import log_daily_bunker_price
 
 def get_live_bunker_prices():
     """
@@ -32,6 +33,9 @@ def get_live_bunker_prices():
         
         vlsfo_price = float(vlsfo_row["Price $/mt"].values[0])
         mgo_price = float(mgo_row["Price $/mt"].values[0])
+        
+        # Save to database to build our own historical trendline!
+        log_daily_bunker_price(vlsfo_price, mgo_price)
         
         return {
             "VLSFO": vlsfo_price,

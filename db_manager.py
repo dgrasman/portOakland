@@ -39,6 +39,15 @@ def init_db():
         )
     ''')
     
+    # 3. Table for Daily Bunker Prices
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS daily_bunker_prices (
+            date DATE PRIMARY KEY,
+            vlsfo_price REAL,
+            mgo_price REAL
+        )
+    ''')
+    
     conn.commit()
     conn.close()
 
@@ -123,3 +132,24 @@ def log_event_to_db(mmsi, name, dest, status, location, speed):
     conn.commit()
     conn.close()
     print(f"[SAVED TO DB]: {name} is now {status} at {location}")
+
+def log_daily_bunker_price(vlsfo, mgo):
+    """Saves the daily closing price to the database, ignoring if already saved today."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Use today's date (YYYY-MM-DD)
+    today = datetime.utcnow().strftime('%Y-%m-%d')
+    
+    # ON CONFLICT DO NOTHING ensures we only save the first price fetched each day
+    cursor.execute('''
+        INSERT INTO daily_bunker_prices (date, vlsfo_price, mgo_price)
+        VALUES (?, ?, ?)
+        ON CONFLICT(date) DO NOTHING
+    ''', (today, vlsfo, mgo))
+    
+    if cursor.rowcount > 0:
+        print(f"[SAVED TO DB]: Logged today's bunker prices - VLSFO: ${vlsfo}, MGO: ${mgo}")
+        
+    conn.commit()
+    conn.close()
