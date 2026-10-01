@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Mac OS
+.DS_Store
+
+# Streamlit local config/secrets
+.streamlit/secrets.toml
