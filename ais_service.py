@@ -21,7 +21,7 @@ async def listen_to_ais_stream():
 
     # Initialize the database
     init_db()
-    print(f"Database initialized at {DB_PATH}")
+    print("Database initialized.")
 
     # wss:// means WebSocket Secure (encrypted)
     uri = "wss://stream.aisstream.io/v0/stream"
