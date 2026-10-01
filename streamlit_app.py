@@ -3,7 +3,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from bunker_scraper import get_live_bunker_prices
+from bunker_scraper import get_live_bunker_prices, get_historical_usda_bunker_prices
 
 st.set_page_config(
     page_title="Port of Oakland Seaport Emissions",
@@ -60,7 +60,7 @@ def load_all_data():
         df_act = pd.read_csv("data/activity_metrics.csv")
         df_ogv = pd.read_csv("data/ogv_modes.csv")
         df_truck = pd.read_csv("data/truck_modes.csv")
-        df_fuel = pd.read_csv("data/historical_bunker_prices.csv")
+        df_fuel = get_historical_usda_bunker_prices()
     except FileNotFoundError:
         df_act, df_ogv, df_truck, df_fuel = None, None, None, None
     return df, df_act, df_ogv, df_truck, df_fuel
@@ -275,9 +275,12 @@ with tab2:
             
     if df_fuel is not None:
         st.markdown("<br>", unsafe_allow_html=True)
-        fig_fuel = px.line(df_fuel, x="Year", y=["VLSFO", "MGO", "LNG", "Methanol", "Ammonia", "Biofuel_B30"],
-                           title="Historical Annual Average Fuel Prices ($/mt)",
-                           markers=True,
+        # The USDA dataset columns are "Date", "VLSFO price", "MGO price", "IFO 380 price"
+        # We will plot the columns that contain "price"
+        price_cols = [col for col in df_fuel.columns if "price" in col.lower()]
+        
+        fig_fuel = px.line(df_fuel, x="Date", y=price_cols, 
+                           title="Authentic USDA Historical Bunker Prices ($/mt)",
                            labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
         fig_fuel.update_layout(xaxis=dict(tickmode='linear', dtick=1))
         st.plotly_chart(fig_fuel, use_container_width=True)
