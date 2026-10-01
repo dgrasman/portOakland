@@ -275,7 +275,7 @@ with tab2:
             
     if df_fuel is not None:
         st.markdown("<br>", unsafe_allow_html=True)
-        fig_fuel = px.line(df_fuel, x="Year", y=["VLSFO", "MGO"], 
+        fig_fuel = px.line(df_fuel, x="Year", y=["VLSFO", "MGO", "LNG", "Methanol", "Ammonia", "Biofuel_B30"],
                            title="Historical Annual Average Fuel Prices ($/mt)",
                            markers=True,
                            labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
