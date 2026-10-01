@@ -298,7 +298,7 @@ with tab2:
         fig_fuel.update_xaxes(title="Date")
         st.plotly_chart(fig_fuel, use_container_width=True)
     else:
-        st.info("No daily bunker prices collected yet. The chart will appear once the scraper runs today!")
+        st.info("Post closing prices at End of Day.")
 
     if df_act is not None:
         # --- Shore Power Plug-in Rates ---
