@@ -284,6 +284,8 @@ with tab2:
                            labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
         fig_fuel.update_layout(xaxis=dict(tickmode='linear', dtick=1))
         st.plotly_chart(fig_fuel, use_container_width=True)
+    else:
+        st.error("Failed to load historical USDA bunker prices. The USDA dataset might be temporarily unavailable or blocking the connection.")
 
     if df_act is not None:
         # --- Shore Power Plug-in Rates ---

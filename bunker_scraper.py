@@ -58,12 +58,21 @@ def get_historical_usda_bunker_prices():
     """
     url = "https://agtransport.usda.gov/api/views/y4ft-fdwn/rows.csv?accessType=DOWNLOAD"
     try:
-        # Pandas can natively download and parse a CSV directly from a URL!
-        df = pd.read_csv(url)
+        # USDA sometimes blocks default Python urllib User-Agents
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        import io
+        df = pd.read_csv(io.StringIO(response.text))
+        
         # Ensure the date column is properly formatted for our charts
         if 'Date' in df.columns:
             df['Date'] = pd.to_datetime(df['Date'])
             df = df.sort_values(by='Date')
+            
         return df
     except Exception as e:
         print(f"Error fetching USDA dataset: {e}")
