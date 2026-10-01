@@ -440,7 +440,7 @@ with tab3:
     fig_map = go.Figure()
 
     # Regional Study Area Bounding Box (SF Bay Area)
-    fig_map.add_trace(go.Scattermapbox(
+    fig_map.add_trace(go.Scattermap(
         fill="toself",
         lon=[-122.550, -122.100, -122.100, -122.550, -122.550],
         lat=[38.050, 38.050, 37.600, 37.600, 38.050],
@@ -451,7 +451,7 @@ with tab3:
     ))
 
     # Port of Oakland
-    fig_map.add_trace(go.Scattermapbox(
+    fig_map.add_trace(go.Scattermap(
         fill="toself",
         lon=[-122.348, -122.310, -122.310, -122.348, -122.348],
         lat=[37.820, 37.820, 37.790, 37.790, 37.820],
@@ -462,7 +462,7 @@ with tab3:
     ))
 
     # Port of San Francisco
-    fig_map.add_trace(go.Scattermapbox(
+    fig_map.add_trace(go.Scattermap(
         fill="toself",
         lon=[-122.400, -122.380, -122.380, -122.400, -122.400],
         lat=[37.810, 37.810, 37.730, 37.730, 37.810],
@@ -473,7 +473,7 @@ with tab3:
     ))
 
     fig_map.update_layout(
-        mapbox={
+        map={
             "style": "carto-positron",
             "center": {"lon": -122.33, "lat": 37.80},
             "zoom": 9
