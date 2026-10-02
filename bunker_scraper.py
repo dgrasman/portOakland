@@ -1,7 +1,5 @@
 import pandas as pd
 import requests
-from db_manager import log_daily_bunker_price
-
 def get_live_bunker_prices():
     """
     Scrapes live global average bunker fuel prices from Ship & Bunker.
@@ -16,8 +14,9 @@ def get_live_bunker_prices():
         response = requests.get(url, headers=headers, timeout=10)
         response.raise_for_status()
         
+        from io import StringIO
         # pandas read_html automatically finds all <table> elements
-        dfs = pd.read_html(response.text)
+        dfs = pd.read_html(StringIO(response.text))
         
         # Ship & Bunker organizes fuel types into sequential tables on the homepage
         # Table 0: IFO380
@@ -34,8 +33,30 @@ def get_live_bunker_prices():
         vlsfo_price = float(vlsfo_row["Price $/mt"].values[0])
         mgo_price = float(mgo_row["Price $/mt"].values[0])
         
-        # Save to database to build our own historical trendline!
-        log_daily_bunker_price(vlsfo_price, mgo_price)
+        from datetime import datetime, timezone
+        import os
+        
+        csv_file = "data/daily_bunker_prices.csv"
+        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
+        
+        new_row = pd.DataFrame([{
+            "date": today,
+            "vlsfo_price": vlsfo_price,
+            "mgo_price": mgo_price,
+            "ifo380_price": None,
+            "lng_price": None,
+            "methanol_price": None,
+            "ammonia_price": None,
+            "biofuel_price": None
+        }])
+        
+        if os.path.exists(csv_file):
+            existing_df = pd.read_csv(csv_file)
+            if today not in existing_df["date"].values:
+                existing_df = pd.concat([existing_df, new_row], ignore_index=True)
+                existing_df.to_csv(csv_file, index=False)
+        else:
+            new_row.to_csv(csv_file, index=False)
         
         return {
             "VLSFO": vlsfo_price,

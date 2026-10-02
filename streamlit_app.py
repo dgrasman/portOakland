@@ -62,22 +62,15 @@ def setup_database():
 setup_database()
 
 def load_all_data():
-    import sqlite3
     df = pd.read_csv("data/oakland_emissions_master.csv")
     try:
         df_act = pd.read_csv("data/activity_metrics.csv")
         df_ogv = pd.read_csv("data/ogv_modes.csv")
         df_truck = pd.read_csv("data/truck_modes.csv")
         
-        # Pull the live daily trend from the database instead of static CSV
         try:
-            conn = sqlite3.connect("data/port_traffic.db")
-            df_fuel = pd.read_sql_query("SELECT * FROM daily_bunker_prices ORDER BY date", conn)
-            conn.close()
-            # If the database is completely empty (no data collected yet today)
-            if df_fuel.empty:
-                df_fuel = None
-        except Exception:
+            df_fuel = pd.read_csv("data/daily_bunker_prices.csv")
+        except FileNotFoundError:
             df_fuel = None
             
     except FileNotFoundError:
