@@ -278,12 +278,11 @@ with tab2:
     
     with st.spinner("Fetching live prices..."):
         try:
-            prices = get_live_bunker_prices()
-            bcol1, bcol2 = st.columns(2)
-            bcol1.metric("VLSFO (Very Low Sulfur Fuel Oil)", f"${prices['VLSFO']:,.2f}")
-            bcol2.metric("MGO (Marine Gas Oil)", f"${prices['MGO']:,.2f}")
+            get_live_bunker_prices()
+            # Reload the dataframe immediately so the chart includes the newly fetched data
+            df_fuel = pd.read_csv("data/daily_bunker_prices.csv")
         except Exception as e:
-            st.warning("Could not fetch live bunker prices at this time.")
+            pass
             
     if df_fuel is not None:
         st.markdown("<br>", unsafe_allow_html=True)
