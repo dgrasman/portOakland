@@ -273,8 +273,6 @@ with tab1:
 
 with tab2:
     st.markdown("---")
-    st.markdown("## Live Bunker Fuel Prices")
-    st.markdown("Global Average Prices ($/mt) fetched directly from Ship & Bunker.")
     
     with st.spinner("Fetching live prices..."):
         try:
