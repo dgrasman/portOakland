@@ -54,6 +54,13 @@ p, li, .stMarkdown {
 """, unsafe_allow_html=True)
 
 # --- Data Loading ---
+@st.cache_resource
+def setup_database():
+    from db_manager import init_db
+    init_db()
+
+setup_database()
+
 def load_all_data():
     import sqlite3
     df = pd.read_csv("data/oakland_emissions_master.csv")
