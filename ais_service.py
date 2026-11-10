@@ -1,140 +1,132 @@
 import asyncio
-import websockets
 import json
 import os
-from dotenv import load_dotenv
-from db_manager import init_db, log_event_to_db, upsert_vessel_particulars
 
-# Load variables from the .env file
+import websockets
+from dotenv import load_dotenv
+
+from db_manager import init_db, log_event_to_db, upsert_vessel_particulars
+from vessel_api_service import enrich_vessel_in_db
+
 load_dotenv()
 
-# API KEY
 API_KEY = os.getenv("AISSTREAM_API_KEY")
+STREAM_URI = "wss://stream.aisstream.io/v0/stream"  # wss:// = encrypted WebSocket
 
-# Dictionary to store data (Position and Destination in separate messages)
+# Oakland, San Francisco and the offshore anchorages
+SF_BAY_BOUNDING_BOX = [[[37.70, -122.55], [37.85, -122.25]]]
+
+# Position and static data (destination, ship type) arrive in separate messages,
+# so we remember what we know about each ship, keyed by MMSI.
 live_ships = {}
+
+
+def get_physical_location(lat, lon):
+    if lon > -122.35 and lat > 37.78:
+        return "Port of Oakland"
+    if lon < -122.38 and lat < 37.82:
+        return "Port of San Francisco"
+    return "SF Bay / Ocean"
+
+
+def get_status_text(nav_status, destination):
+    """Converts an AIS navigational status code into the label we log."""
+    if nav_status == 1:
+        return "At Anchor (Waiting for Oakland)" if "OAK" in destination else "At Anchor"
+    if nav_status == 5:
+        return "Moored"
+    return "Moving"
+
+
+def handle_static_data(mmsi, message):
+    """Records destination, ship type and size. Only Cargo / Tanker ships are flagged as commercial."""
+    ship = live_ships[mmsi]
+    static_data = message.get("Message", {}).get("ShipStaticData", {})
+
+    destination = static_data.get("Destination", "Unknown").strip().upper()
+    if destination:
+        ship["Destination"] = destination
+
+    dimension = static_data.get("Dimension", {})
+    length = dimension.get("A", 0) + dimension.get("B", 0)
+    width = dimension.get("C", 0) + dimension.get("D", 0)
+
+    ship["is_commercial"] = upsert_vessel_particulars(
+        mmsi, ship["Name"], static_data.get("Type", 0), length, width
+    )
+
+
+def handle_position_report(mmsi, message):
+    """Logs an event whenever a commercial ship's status or location changes."""
+    ship = live_ships[mmsi]
+    if not ship["is_commercial"]:
+        return
+
+    report = message.get("Message", {}).get("PositionReport", {})
+    meta = message.get("MetaData", {})
+
+    location = get_physical_location(meta.get("latitude", 0), meta.get("longitude", 0))
+    status = get_status_text(report.get("NavigationalStatus", "Unknown"), ship["Destination"])
+
+    # Only save when something changed, otherwise we'd log every position ping
+    if (status, location) == (ship["LastStatus"], ship["LastLocation"]):
+        return
+
+    log_event_to_db(mmsi, ship["Name"], ship["Destination"], status, location, report.get("Sog", 0))
+
+    # VesselAPI quota is limited, so only look up ships that actually berth at Oakland
+    if location == "Port of Oakland" and status == "Moored":
+        asyncio.create_task(asyncio.to_thread(enrich_vessel_in_db, mmsi))
+
+    ship["LastStatus"] = status
+    ship["LastLocation"] = location
+
 
 async def listen_to_ais_stream():
     if not API_KEY or API_KEY == "your_aisstream_api_key_here":
         print("API Key error")
         return
 
-    # Initialize the database
     init_db()
     print("Database initialized.")
 
-    # wss:// means WebSocket Secure (encrypted)
-    uri = "wss://stream.aisstream.io/v0/stream"
-    
     while True:
         try:
-            print(f"Connecting to secure WebSocket at {uri}...")
-            # Establish the connection
-            async with websockets.connect(uri) as websocket:
-                print("Connected successful. Sending subscription request...")
-                
-                # Bounding box for Oakland, San Francisco, and the offshore anchorages
-                sf_bay_bounding_box = [[[37.70, -122.55], [37.85, -122.25]]]
-                
-                subscribe_message = {
+            print(f"Connecting to secure WebSocket at {STREAM_URI}...")
+            async with websockets.connect(STREAM_URI) as websocket:
+                await websocket.send(json.dumps({
                     "APIKey": API_KEY,
-                    "BoundingBoxes": sf_bay_bounding_box,
-                    # PositionReports and ShipStaticData (contains the Destination)
-                    "FilterMessageTypes": ["PositionReport", "ShipStaticData"] 
-                }
-                
-                # Subscription as JSON string
-                await websocket.send(json.dumps(subscribe_message))
+                    "BoundingBoxes": SF_BAY_BOUNDING_BOX,
+                    "FilterMessageTypes": ["PositionReport", "ShipStaticData"],
+                }))
                 print("Subscribed to San Francisco Bay traffic. Waiting for ships...\n")
-                
-                # Listen indefinitely for incoming messages
+
                 async for message_json in websocket:
                     message = json.loads(message_json)
-                    msg_type = message.get("MessageType")
                     meta = message.get("MetaData", {})
                     mmsi = meta.get("MMSI", "Unknown")
-                    
-                    # Initialize the ship if we haven't seen it yet
+
                     if mmsi not in live_ships:
                         live_ships[mmsi] = {
-                            "Name": meta.get("ShipName", "Unknown").strip(), 
+                            "Name": meta.get("ShipName", "Unknown").strip(),
                             "Destination": "Unknown",
                             "LastStatus": "Unknown",
                             "LastLocation": "Unknown",
-                            "is_commercial": False # Default to False until proven otherwise
+                            "is_commercial": False,  # until static data says otherwise
                         }
 
-                    # Update Destination if we receive Static Data
+                    msg_type = message.get("MessageType")
                     if msg_type == "ShipStaticData":
-                        static_data = message.get("Message", {}).get("ShipStaticData", {})
-                        
-                        # Get Destination
-                        destination = static_data.get("Destination", "Unknown").strip().upper()
-                        if destination:
-                            live_ships[mmsi]["Destination"] = destination
-                            
-                        # Get Ship Type & Dimensions
-                        ship_type_code = static_data.get("Type", 0)
-                        dimension = static_data.get("Dimension", {})
-                        length = dimension.get("A", 0) + dimension.get("B", 0)
-                        width = dimension.get("C", 0) + dimension.get("D", 0)
-                        
-                        # Save to DB and check if it's a Cargo/Tanker ship
-                        is_commercial = upsert_vessel_particulars(
-                            mmsi, live_ships[mmsi]["Name"], ship_type_code, length, width
-                        )
-                        live_ships[mmsi]["is_commercial"] = is_commercial
+                        handle_static_data(mmsi, message)
+                    elif msg_type == "PositionReport":
+                        handle_position_report(mmsi, message)
 
-                    # Update Location and Status if position report received
-                    if msg_type == "PositionReport":
-                        # Only process Commercial Ships (Cargo/Tankers)
-                        if not live_ships[mmsi].get("is_commercial"):
-                            continue
-                            
-                        report = message.get("Message", {}).get("PositionReport", {})
-                        nav_status = report.get("NavigationalStatus", "Unknown")
-                        speed = report.get("Sog", 0) # Speed Over Ground
-                        lat = meta.get("latitude", 0)
-                        lon = meta.get("longitude", 0)
-                        
-                        dest = live_ships[mmsi]["Destination"]
-                        ship_name = live_ships[mmsi]["Name"]
-                        
-                        # Determine where the ship is physically located
-                        physical_location = "SF Bay / Ocean"
-                        if lon > -122.35 and lat > 37.78:
-                            physical_location = "Port of Oakland"
-                        elif lon < -122.38 and lat < 37.82:
-                            physical_location = "Port of San Francisco"
-
-                        # Determine ship activity
-                        status_text = "Moving"
-                        if nav_status == 1:
-                            status_text = f"At Anchor"
-                            # Flag if anchored but waiting for Oakland
-                            if "OAK" in dest:
-                                status_text = "At Anchor (Waiting for Oakland)"
-                        elif nav_status == 5:
-                            status_text = f"Moored"
-                            
-                        # CRITICAL LOGIC: Only save to DB if the status or location has CHANGED
-                        current_state = f"{status_text} | {physical_location}"
-                        previous_state = f"{live_ships[mmsi]['LastStatus']} | {live_ships[mmsi]['LastLocation']}"
-                        
-                        if current_state != previous_state:
-                            # Log the event (e.g. ship just arrived at Oakland berth, or just departed)
-                            log_event_to_db(mmsi, ship_name, dest, status_text, physical_location, speed)
-                            
-                            # Update memory
-                            live_ships[mmsi]['LastStatus'] = status_text
-                            live_ships[mmsi]['LastLocation'] = physical_location
-
-        except (websockets.exceptions.ConnectionClosed, Exception) as e:
+        except Exception as e:
             print(f"Connection dropped ({e}). Reconnecting in 5 seconds...")
             await asyncio.sleep(5)
 
+
 if __name__ == "__main__":
-    # Run the asynchronous function
     try:
         asyncio.run(listen_to_ais_stream())
     except KeyboardInterrupt:

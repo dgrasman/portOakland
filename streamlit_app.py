@@ -1,9 +1,11 @@
-import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import streamlit as st
 from plotly.subplots import make_subplots
+
 from bunker_scraper import get_live_bunker_prices
+from db_manager import init_db
 
 st.set_page_config(
     page_title="Port of Oakland Seaport Emissions",
@@ -54,40 +56,35 @@ p, li, .stMarkdown {
 """, unsafe_allow_html=True)
 
 # --- Data Loading ---
+POLLUTANTS = ["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"]
+SHORT_TONS_TO_METRIC_TONNES = 0.907185
+
+
 @st.cache_resource
 def setup_database():
-    from db_manager import init_db
     init_db()
+
+
+def read_csv_or_none(name):
+    try:
+        return pd.read_csv(f"data/{name}.csv")
+    except FileNotFoundError:
+        return None
+
 
 setup_database()
 
-def load_all_data():
-    df = pd.read_csv("data/oakland_emissions_master.csv")
-    try:
-        df_act = pd.read_csv("data/activity_metrics.csv")
-        df_ogv = pd.read_csv("data/ogv_modes.csv")
-        df_truck = pd.read_csv("data/truck_modes.csv")
-        
-        try:
-            df_fuel = pd.read_csv("data/daily_bunker_prices.csv")
-        except FileNotFoundError:
-            df_fuel = None
-            
-    except FileNotFoundError:
-        df_act, df_ogv, df_truck, df_fuel = None, None, None, None
-    return df, df_act, df_ogv, df_truck, df_fuel
-
-df, df_act, df_ogv, df_truck, df_fuel = load_all_data()
+df = pd.read_csv("data/oakland_emissions_master.csv")
+df_act = read_csv_or_none("activity_metrics")
+df_ogv = read_csv_or_none("ogv_modes")
+df_truck = read_csv_or_none("truck_modes")
+df_fuel = read_csv_or_none("daily_bunker_prices")
 
 # Convert all emissions from US short tons to metric tonnes (MT)
-pollutants = ["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"]
-for col in pollutants:
-    if col in df.columns:
-        df[col] = df[col] * 0.907185
-    if df_ogv is not None and col in df_ogv.columns:
-        df_ogv[col] = df_ogv[col] * 0.907185
-    if df_truck is not None and col in df_truck.columns:
-        df_truck[col] = df_truck[col] * 0.907185
+for frame in (df, df_ogv, df_truck):
+    if frame is not None:
+        columns = [col for col in POLLUTANTS if col in frame.columns]
+        frame[columns] = frame[columns] * SHORT_TONS_TO_METRIC_TONNES
 
 # --- Page Header ---
 st.title("Port of Oakland Seaport Emissions")
@@ -111,7 +108,7 @@ col_filter1, col_filter2 = st.columns([1, 1])
 with col_filter1:
     pollutant = st.selectbox(
         "Metric",
-        options=["DPM", "NOx", "SOx", "PM10", "PM2_5", "ROG", "CO", "CO2e"],
+        options=POLLUTANTS,
         format_func=lambda x: metric_labels.get(x, x),
         index=0,
         label_visibility="collapsed"
@@ -127,7 +124,8 @@ with col_filter2:
 
 filtered_df = df[df["Method"] == method].copy()
 
-# --- Common Plotly Layout Tweaks ---
+
+# --- Chart Helpers ---
 def apply_clean_layout(fig):
     fig.update_layout(
         font=dict(family="DM Sans"),
@@ -139,48 +137,80 @@ def apply_clean_layout(fig):
     )
     return fig
 
+
+def show_stacked_bar(data, color, **layout):
+    """Stacked bar of the selected pollutant by year, split by `color`."""
+    fig = px.bar(
+        data,
+        x="Year",
+        y=pollutant,
+        color=color,
+        barmode="stack",
+        color_discrete_sequence=px.colors.qualitative.Set2
+    )
+    fig.update_layout(**layout)
+    st.plotly_chart(apply_clean_layout(fig), use_container_width=True)
+
+
+def show_bar_and_line_chart(bar_y, bar_name, bar_axis_title, bar_color, line_y, line_name, line_color):
+    """Bars (left axis) with a 0-100% line (right axis), by year, from df_act."""
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    fig.add_trace(
+        go.Bar(x=df_act["Year"], y=bar_y, name=bar_name, marker_color=bar_color),
+        secondary_y=False,
+    )
+    fig.add_trace(
+        go.Scatter(
+            x=df_act["Year"],
+            y=line_y,
+            name=line_name,
+            mode="lines+markers",
+            line=dict(color=line_color, width=3)
+        ),
+        secondary_y=True,
+    )
+    fig.update_layout(hovermode="x unified", barmode="group")
+    fig.update_yaxes(title_text=bar_axis_title, secondary_y=False)
+    fig.update_yaxes(title_text=line_name, range=[0, 100], secondary_y=True)
+    st.plotly_chart(apply_clean_layout(fig), use_container_width=True)
+
+
 # --- KPI Section ---
 st.markdown("---")
 
 if method == "Historical":
+    def total_for(year):
+        return filtered_df[filtered_df["Year"] == year][pollutant].sum()
+
     latest_year = filtered_df["Year"].max()
-    base_year_df = filtered_df[filtered_df["Year"] == 2005]
-    latest_year_df = filtered_df[filtered_df["Year"] == latest_year]
-    
-    base_val = base_year_df[pollutant].sum()
-    latest_val = latest_year_df[pollutant].sum()
-    
+    base_val = total_for(2005)
+    latest_val = total_for(latest_year)
+
     # Handle edge cases where base_val is 0 to avoid division by zero
     pct_change = ((latest_val - base_val) / base_val * 100) if base_val > 0 else 0
 
     col1, col2, col3 = st.columns(3)
     col1.metric("2005 Baseline Total", f"{base_val:,.1f} MT")
     col2.metric(f"{latest_year} Total", f"{latest_val:,.1f} MT", delta=f"{pct_change:.1f}%", delta_color="inverse")
-    
-    if df_act is not None:
-        common_years = set(filtered_df["Year"]).intersection(set(df_act["Year"]))
-        if common_years:
-            latest_common_year = max(common_years)
-            latest_teu = df_act[df_act["Year"] == latest_common_year]["TEU"].values[0]
-            latest_emissions_val = filtered_df[filtered_df["Year"] == latest_common_year][pollutant].sum()
-            intensity = latest_emissions_val / latest_teu
-            
-            intensity_delta = None
-            if 2005 in common_years:
-                base_teu = df_act[df_act["Year"] == 2005]["TEU"].values[0]
-                base_emiss = filtered_df[filtered_df["Year"] == 2005][pollutant].sum()
-                if base_teu > 0 and base_emiss > 0:
-                    base_intensity = base_emiss / base_teu
-                    intensity_pct_change = ((intensity - base_intensity) / base_intensity) * 100
-                    intensity_delta = f"{intensity_pct_change:.1f}%"
-            
-            if intensity < 0.01:
-                # 1 Metric Tonne = 1000 kg
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity * 1000:.2f} kg/TEU", delta=intensity_delta, delta_color="inverse")
-            else:
-                col3.metric(f"Intensity ({latest_common_year})", f"{intensity:.4f} MT/TEU", delta=intensity_delta, delta_color="inverse")
+
+    common_years = set(filtered_df["Year"]) & set(df_act["Year"]) if df_act is not None else set()
+    if common_years:
+        def teu_for(year):
+            return df_act[df_act["Year"] == year]["TEU"].values[0]
+
+        latest_common_year = max(common_years)
+        intensity = total_for(latest_common_year) / teu_for(latest_common_year)  # MT per TEU
+
+        intensity_delta = None
+        if 2005 in common_years and teu_for(2005) > 0 and total_for(2005) > 0:
+            base_intensity = total_for(2005) / teu_for(2005)
+            intensity_delta = f"{(intensity - base_intensity) / base_intensity * 100:.1f}%"
+
+        if intensity < 0.01:
+            intensity_text = f"{intensity * 1000:.2f} kg/TEU"  # 1 MT = 1000 kg
         else:
-            col3.metric("Emissions Intensity", "N/A")
+            intensity_text = f"{intensity:.4f} MT/TEU"
+        col3.metric(f"Intensity ({latest_common_year})", intensity_text, delta=intensity_delta, delta_color="inverse")
     else:
         col3.metric("Emissions Intensity", "N/A")
 
@@ -198,17 +228,7 @@ with tab1:
     Tracking these totals against the 2005 baseline helps the Port evaluate the success of the Maritime Air Quality Improvement Plan (MAQIP).
     """)
 
-    fig_main = px.bar(
-        filtered_df,
-        x="Year",
-        y=pollutant,
-        color="Category",
-        barmode="stack",
-        color_discrete_sequence=px.colors.qualitative.Set2
-    )
-    fig_main.update_layout(xaxis=dict(type='category'), hovermode="x unified")
-    fig_main = apply_clean_layout(fig_main)
-    st.plotly_chart(fig_main, use_container_width=True)
+    show_stacked_bar(filtered_df, "Category", xaxis=dict(type="category"), hovermode="x unified")
 
     # --- Port Activity Trends ---
     if df_act is not None:
@@ -216,82 +236,60 @@ with tab1:
         st.markdown("## Port Activity Trends")
         st.markdown("""
         To understand emissions scaling, we have to look at overall Port activity. If throughput increases, we expect emissions to increase unless operational efficiencies or cleaner technologies are introduced.
-    
+
         This chart tracks the volume of cargo processed (TEUs) against the number of truck trips generated.
         """)
-    
+
         fig_act = px.line(
-            df_act, 
-            x="Year", 
-            y=["TEU", "TruckTrips"], 
-            color_discrete_sequence=["#0f172a", "#3b82f6"] # Deep slate and bright blue for contrast
+            df_act,
+            x="Year",
+            y=["TEU", "TruckTrips"],
+            color_discrete_sequence=["#0f172a", "#3b82f6"]  # Deep slate and bright blue for contrast
         )
         fig_act.update_traces(line=dict(width=3))
         fig_act.update_layout(hovermode="x unified")
-        fig_act = apply_clean_layout(fig_act)
-        st.plotly_chart(fig_act, use_container_width=True)
+        st.plotly_chart(apply_clean_layout(fig_act), use_container_width=True)
 
     # --- Ocean-Going Vessels (OGV) ---
     st.markdown("---")
     st.markdown(f"## Ocean-Going Vessel **{pollutant}** by Mode")
     st.markdown(f"""
     Ocean-Going Vessels (OGVs) are traditionally the largest single source of emissions at the Port. However, their emissions profile isn't just generated while docked.
-    
+
     The geographic domain for tracking OGV **{pollutant}** begins the moment a ship passes under the Golden Gate Bridge. This chart breaks down emissions by the ship's specific operating mode, illustrating the massive impact of Shore Power (plugging into the electrical grid while at Berth) and vessel speed reduction zones.
     """)
-    
-    fig_ogv = px.bar(
-        df_ogv, 
-        x="Year", 
-        y=pollutant, 
-        color="Mode", 
-        barmode="stack", 
-        color_discrete_sequence=px.colors.qualitative.Set2
-    )
-    fig_ogv = apply_clean_layout(fig_ogv)
-    st.plotly_chart(fig_ogv, use_container_width=True)
+    show_stacked_bar(df_ogv, "Mode")
 
     # --- Drayage Trucks ---
     st.markdown("---")
     st.markdown(f"## Drayage Truck **{pollutant}** by Mode")
     st.markdown(f"""
     Drayage trucks move containers in and out of the terminal gates. Tracking their operating modes—whether they are idling in queue at the gate or actively driving on surface roads—helps identify operational bottlenecks.
-    
+
     *Note: A sharp increase in estimated emissions or activity may be the result of updated data collection methodologies (e.g., switching to automated eModal gate counts) rather than a physical spike in traffic.*
     """)
-    
-    fig_truck = px.bar(
-        df_truck, 
-        x="Year", 
-        y=pollutant, 
-        color="Mode", 
-        barmode="stack", 
-        color_discrete_sequence=px.colors.qualitative.Set2
-    )
-    fig_truck = apply_clean_layout(fig_truck)
-    st.plotly_chart(fig_truck, use_container_width=True)
+    show_stacked_bar(df_truck, "Mode")
 
 with tab2:
     st.markdown("---")
-    
+
     with st.spinner("Fetching live prices..."):
         try:
             get_live_bunker_prices()
             # Reload the dataframe immediately so the chart includes the newly fetched data
             df_fuel = pd.read_csv("data/daily_bunker_prices.csv")
-        except Exception as e:
+        except Exception:
             pass
-            
+
     if df_fuel is not None:
         st.markdown("<br>", unsafe_allow_html=True)
-        # Get all columns except 'date' to plot dynamically
-        fuel_cols = [col for col in df_fuel.columns if col != 'date']
-        
+        # Plot every column except 'date'
+        fuel_cols = [col for col in df_fuel.columns if col != "date"]
+
         fig_fuel = px.line(df_fuel, x="date", y=fuel_cols,
                            title="Live Daily Bunker Fuel Prices ($/mt)",
                            markers=True,
                            labels={"value": "Price ($/mt)", "variable": "Fuel Type"})
-        # Make the x-axis display nicely for daily data
         fig_fuel.update_xaxes(title="Date")
         st.plotly_chart(fig_fuel, use_container_width=True)
     else:
@@ -303,109 +301,46 @@ with tab2:
         st.markdown("## Shore Power Plug-in Rates")
         st.markdown("""
         "Shore Power" or "Cold Ironing" allows Ocean-Going Vessels to plug into the electrical grid while at berth, allowing them to shut off their auxiliary diesel engines. This has been a massive driver of emissions reductions.
-    
+
         This chart tracks the percentage of total vessel calls that successfully connected to Shore Power.
         """)
-    
-        if "ShorePowerPluginRate" in df_act.columns:
-            # Calculate the absolute number of plugged-in vessels
-            df_act["PluggedInVessels"] = df_act["VesselCalls"] * (df_act["ShorePowerPluginRate"] / 100)
-            
-            fig_shore = make_subplots(specs=[[{"secondary_y": True}]])
-            
-            fig_shore.add_trace(
-                go.Bar(
-                    x=df_act["Year"], 
-                    y=df_act["VesselCalls"], 
-                    name="Total Vessel Calls",
-                    marker_color="#cbd5e1"
-                ),
-                secondary_y=False,
-            )
-            
-            fig_shore.add_trace(
-                go.Scatter(
-                    x=df_act["Year"], 
-                    y=df_act["ShorePowerPluginRate"], 
-                    name="Plug-in Rate (%)",
-                    mode='lines+markers',
-                    line=dict(color="#10b981", width=3)
-                ),
-                secondary_y=True,
-            )
-            
-            fig_shore.update_layout(
-                hovermode="x unified",
-                barmode='group'
-            )
-            fig_shore.update_yaxes(title_text="Total Vessel Calls", secondary_y=False)
-            fig_shore.update_yaxes(title_text="Plug-in Rate (%)", range=[0, 100], secondary_y=True)
-            
-            fig_shore = apply_clean_layout(fig_shore)
-            st.plotly_chart(fig_shore, use_container_width=True)
+
+        df_act["PluggedInVessels"] = df_act["VesselCalls"] * (df_act["ShorePowerPluginRate"] / 100)
+
+        show_bar_and_line_chart(
+            bar_y=df_act["VesselCalls"], bar_name="Total Vessel Calls",
+            bar_axis_title="Total Vessel Calls", bar_color="#cbd5e1",
+            line_y=df_act["ShorePowerPluginRate"], line_name="Plug-in Rate (%)", line_color="#10b981"
+        )
 
         # --- Avoided Emissions Impact ---
-        if "ShorePowerPluginRate" in df_act.columns and "RenewableEnergyPercent" in df_act.columns:
-            st.markdown("---")
-            st.markdown("## Avoided Emissions Impact")
-            st.markdown(f"""
-            This section estimates the net avoided emissions achieved by shore power.
-            
-            **Methodology:**
-            1. **Baseline Berth Emissions Rate** = Total 2005 Berth Emissions / 2005 Vessel Calls
-            2. **Gross Avoided Emissions** = Plugged-In Vessels × Baseline Berth Emissions Rate
-            3. **Net Avoided Emissions** = Gross Avoided Emissions × (Renewable Energy %)
-            
-            *(Note: This is a simplified proxy assuming non-renewable grid intensity offsets the avoided emissions proportionally.)*
-            """)
-            
-            # 1. Calculate Baseline Berth Emissions per Vessel Call for selected pollutant
-            if df_ogv is not None and 2005 in df_ogv["Year"].values and 2005 in df_act["Year"].values:
-                baseline_berth_emissions = df_ogv[(df_ogv["Year"] == 2005) & (df_ogv["Mode"] == "Berth")][pollutant].sum()
-                baseline_vessel_calls = df_act[df_act["Year"] == 2005]["VesselCalls"].sum()
-                
-                if baseline_vessel_calls > 0:
-                    baseline_rate = baseline_berth_emissions / baseline_vessel_calls
-                    
-                    # 2. Calculate Gross Avoided Emissions
-                    # We already have df_act["PluggedInVessels"]
-                    df_act["GrossAvoidedEmissions"] = df_act["PluggedInVessels"] * baseline_rate
-                    
-                    # 3. Calculate Net Avoided Emissions
-                    df_act["NetAvoidedEmissions"] = df_act["GrossAvoidedEmissions"] * (df_act["RenewableEnergyPercent"] / 100)
-                    
-                    fig_avoid = make_subplots(specs=[[{"secondary_y": True}]])
-                    
-                    fig_avoid.add_trace(
-                        go.Bar(
-                            x=df_act["Year"], 
-                            y=df_act["NetAvoidedEmissions"], 
-                            name=f"Net Avoided {pollutant} (MT)",
-                            marker_color="#10b981"
-                        ),
-                        secondary_y=False,
-                    )
-                    
-                    fig_avoid.add_trace(
-                        go.Scatter(
-                            x=df_act["Year"], 
-                            y=df_act["RenewableEnergyPercent"], 
-                            name="Grid Cleanliness (%)",
-                            mode='lines+markers',
-                            line=dict(color="#0ea5e9", width=3)
-                        ),
-                        secondary_y=True,
-                    )
-                    
-                    fig_avoid.update_layout(
-                        hovermode="x unified",
-                        barmode='group'
-                    )
-                    fig_avoid.update_yaxes(title_text=f"Avoided {pollutant} (MT)", secondary_y=False)
-                    fig_avoid.update_yaxes(title_text="Grid Cleanliness (%)", range=[0,100], secondary_y=True)
-                    
-                    fig_avoid = apply_clean_layout(fig_avoid)
-                    st.plotly_chart(fig_avoid, use_container_width=True)
+        st.markdown("---")
+        st.markdown("## Avoided Emissions Impact")
+        st.markdown("""
+        This section estimates the net avoided emissions achieved by shore power.
+
+        **Methodology:**
+        1. **Baseline Berth Emissions Rate** = Total 2005 Berth Emissions / 2005 Vessel Calls
+        2. **Gross Avoided Emissions** = Plugged-In Vessels × Baseline Berth Emissions Rate
+        3. **Net Avoided Emissions** = Gross Avoided Emissions × (Renewable Energy %)
+
+        *(Note: This is a simplified proxy assuming non-renewable grid intensity offsets the avoided emissions proportionally.)*
+        """)
+
+        if df_ogv is not None and 2005 in df_ogv["Year"].values and 2005 in df_act["Year"].values:
+            baseline_berth_emissions = df_ogv[(df_ogv["Year"] == 2005) & (df_ogv["Mode"] == "Berth")][pollutant].sum()
+            baseline_vessel_calls = df_act[df_act["Year"] == 2005]["VesselCalls"].sum()
+
+            if baseline_vessel_calls > 0:
+                baseline_rate = baseline_berth_emissions / baseline_vessel_calls
+                gross_avoided = df_act["PluggedInVessels"] * baseline_rate
+                net_avoided = gross_avoided * (df_act["RenewableEnergyPercent"] / 100)
+
+                show_bar_and_line_chart(
+                    bar_y=net_avoided, bar_name=f"Net Avoided {pollutant} (MT)",
+                    bar_axis_title=f"Avoided {pollutant} (MT)", bar_color="#10b981",
+                    line_y=df_act["RenewableEnergyPercent"], line_name="Grid Cleanliness (%)", line_color="#0ea5e9"
+                )
 
         # --- Renewable Energy Procurement ---
         st.markdown("---")
@@ -413,61 +348,43 @@ with tab2:
         st.markdown("""
         The Port of Oakland operates as a publicly owned electric utility. This chart tracks the percentage of the Port's electricity procurement that comes from renewable and zero-carbon sources (such as geothermal, solar, and hydroelectric power).
         """)
-        
-        if "RenewableEnergyPercent" in df_act.columns:
-            fig_renew = px.area(
-                df_act, 
-                x="Year", 
-                y="RenewableEnergyPercent", 
-                color_discrete_sequence=["#0ea5e9"]
-            )
-            fig_renew.update_traces(fillcolor='rgba(14, 165, 233, 0.3)', line=dict(width=3))
-            fig_renew.update_layout(
-                hovermode="x unified",
-                yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
-            )
-            fig_renew = apply_clean_layout(fig_renew)
-            st.plotly_chart(fig_renew, use_container_width=True)
+
+        fig_renew = px.area(
+            df_act,
+            x="Year",
+            y="RenewableEnergyPercent",
+            color_discrete_sequence=["#0ea5e9"]
+        )
+        fig_renew.update_traces(fillcolor="rgba(14, 165, 233, 0.3)", line=dict(width=3))
+        fig_renew.update_layout(
+            hovermode="x unified",
+            yaxis=dict(title="Renewable Energy (%)", range=[0, 100])
+        )
+        st.plotly_chart(apply_clean_layout(fig_renew), use_container_width=True)
 
 with tab3:
     st.markdown("---")
     st.markdown("## Geographic Study Boundaries")
     st.markdown("Interactive map defining the physical bounds of the Port of Oakland, Port of San Francisco, and the broader regional study area.")
 
+    # (name, west, east, north, south, fill color)
+    study_areas = [
+        ("Study Region (SF Bay Area)", -122.550, -122.100, 38.050, 37.600, "rgba(100, 100, 200, 0.2)"),
+        ("Port of Oakland", -122.348, -122.310, 37.820, 37.790, "rgba(255, 100, 100, 0.5)"),
+        ("Port of San Francisco", -122.400, -122.380, 37.810, 37.730, "rgba(100, 200, 100, 0.5)"),
+    ]
+
     fig_map = go.Figure()
-
-    # Regional Study Area Bounding Box (SF Bay Area)
-    fig_map.add_trace(go.Scattermap(
-        fill="toself",
-        lon=[-122.550, -122.100, -122.100, -122.550, -122.550],
-        lat=[38.050, 38.050, 37.600, 37.600, 38.050],
-        marker={'size': 0},
-        name="Study Region (SF Bay Area)",
-        fillcolor="rgba(100, 100, 200, 0.2)",
-        hoverinfo="name"
-    ))
-
-    # Port of Oakland
-    fig_map.add_trace(go.Scattermap(
-        fill="toself",
-        lon=[-122.348, -122.310, -122.310, -122.348, -122.348],
-        lat=[37.820, 37.820, 37.790, 37.790, 37.820],
-        marker={'size': 0},
-        name="Port of Oakland",
-        fillcolor="rgba(255, 100, 100, 0.5)",
-        hoverinfo="name"
-    ))
-
-    # Port of San Francisco
-    fig_map.add_trace(go.Scattermap(
-        fill="toself",
-        lon=[-122.400, -122.380, -122.380, -122.400, -122.400],
-        lat=[37.810, 37.810, 37.730, 37.730, 37.810],
-        marker={'size': 0},
-        name="Port of San Francisco",
-        fillcolor="rgba(100, 200, 100, 0.5)",
-        hoverinfo="name"
-    ))
+    for name, west, east, north, south, color in study_areas:
+        fig_map.add_trace(go.Scattermap(
+            fill="toself",
+            lon=[west, east, east, west, west],
+            lat=[north, north, south, south, north],
+            marker={"size": 0},
+            name=name,
+            fillcolor=color,
+            hoverinfo="name"
+        ))
 
     fig_map.update_layout(
         map={

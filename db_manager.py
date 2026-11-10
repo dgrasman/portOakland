@@ -1,18 +1,72 @@
-import sqlite3
 import os
-from datetime import datetime
+import sqlite3
+from datetime import datetime, timezone
 
 DB_PATH = "data/port_traffic.db"
 
+# Every vessel_particulars column except the mmsi key, in display order.
+# init_db() creates the table from this list and adds any column an older database is missing.
+VESSEL_COLUMNS = {
+    "ship_name": "TEXT",
+    "classification": "TEXT",
+    "GT": "INTEGER",
+    "gross_tonnage": "INTEGER",
+    "gt_source": "TEXT",
+    "is_oakland_berth": "INTEGER DEFAULT 0",
+    "oakland_berth_count": "INTEGER DEFAULT 0",
+    "teu_capacity": "INTEGER",
+    "teu_source": "TEXT",
+    "length": "INTEGER",
+    "width": "INTEGER",
+    "imo": "INTEGER",
+    "vessel_type": "TEXT",
+    "vessel_subtype": "TEXT",
+    "deadweight_tonnage": "INTEGER",
+    "ship_type_code": "INTEGER",
+    "main_engine_kw": "INTEGER",
+    "engine_model": "TEXT",
+    "engine_type": "INTEGER",
+    "aux_engine_capacity_kw": "INTEGER",
+    "aux_engine_kw": "INTEGER",
+    "fuel_type": "TEXT",
+    "is_dual_fuel": "INTEGER DEFAULT 0",
+    "fuel_capability": "TEXT",
+    "technical_efficiency": "TEXT",
+    "co2_at_berth_annual": "REAL",
+    "flag_country": "TEXT",
+    "year_built": "INTEGER",
+    "call_sign": "TEXT",
+    "last_api_update": "DATETIME",
+}
+
+# CARB container-ship archetypes by length: (max length in m, TEU, aux load in kW, label)
+LENGTH_ARCHETYPES = [
+    (200, 1500, 750, "<200m"),
+    (260, 4000, 1000, "200-260m"),
+    (300, 6500, 1300, "260-300m"),
+    (360, 10000, 1600, "300-360m"),
+    (float("inf"), 14000, 2000, ">=360m"),
+]
+
+
+def now_utc():
+    """Current UTC time as the 'YYYY-MM-DD HH:MM:SS' string stored in the database."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def length_archetype(length):
+    """Returns (teu, aux_kw, label) for a vessel length in metres."""
+    for max_length, teu, aux_kw, label in LENGTH_ARCHETYPES:
+        if length < max_length:
+            return teu, aux_kw, label
+
+
 def init_db():
-    # Ensure data directory exists
     os.makedirs("data", exist_ok=True)
-    
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # 1. Table for tracking Arrivals/Departures
-    cursor.execute('''
+
+    # Arrivals / departures
+    conn.execute('''
         CREATE TABLE IF NOT EXISTS ship_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME,
@@ -24,37 +78,17 @@ def init_db():
             speed REAL
         )
     ''')
-    
-    # 2. Table for Vessel Specifications & Classifications
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS vessel_particulars (
-            mmsi TEXT PRIMARY KEY,
-            ship_name TEXT,
-            ship_type_code INTEGER,
-            classification TEXT,
-            length INTEGER,
-            width INTEGER,
-            teu_capacity INTEGER,
-            aux_engine_kw INTEGER
-        )
-    ''')
-    
-    # 3. Table for Daily Bunker Prices
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS daily_bunker_prices (
-            date DATE PRIMARY KEY,
-            vlsfo_price REAL,
-            mgo_price REAL,
-            ifo380_price REAL,
-            lng_price REAL,
-            methanol_price REAL,
-            ammonia_price REAL,
-            biofuel_price REAL
-        )
-    ''')
-    
+
+    # Vessel specifications & classifications
+    conn.execute("CREATE TABLE IF NOT EXISTS vessel_particulars (mmsi TEXT PRIMARY KEY)")
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(vessel_particulars)")}
+    for name, column_type in VESSEL_COLUMNS.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE vessel_particulars ADD COLUMN {name} {column_type}")
+
     conn.commit()
     conn.close()
+
 
 def get_ais_classification(type_code):
     """Maps standard AIS integer type codes to human-readable vessel classifications."""
@@ -72,89 +106,62 @@ def get_ais_classification(type_code):
         return "Fishing"
     if type_code in (36, 37):
         return "Pleasure Craft / Sailboat"
-    
     return f"Other ({type_code})"
 
-def estimate_engine_specs(length, classification):
-    """
-    Estimates the Auxiliary Engine load (kW) and TEU based on the ship's length 
-    using standard CARB OGV archetypes for container ships.
-    """
-    if classification != "Cargo / Freight" or length == 0:
-        return None, None
-        
-    # Standard length ranges for Container Ships (in meters)
-    if length < 200:
-        return 1500, 750    # ~1,500 TEU, ~750 kW Aux load
-    elif 200 <= length < 260:
-        return 4000, 1000   # ~4,000 TEU, ~1,000 kW Aux load
-    elif 260 <= length < 300:
-        return 6500, 1300   # ~6,500 TEU, ~1,300 kW Aux load
-    elif 300 <= length < 360:
-        return 10000, 1600  # ~10,000 TEU, ~1,600 kW Aux load
-    else:
-        return 14000, 2000  # 14,000+ TEU, 2,000+ kW Aux load
 
 def upsert_vessel_particulars(mmsi, name, type_code, length, width):
-    """Inserts or updates the vessel's static classification data."""
+    """
+    Inserts or updates a vessel's static AIS data. Returns True for Cargo / Tanker ships
+    (the only ones we track) and False otherwise.
+    Existing TEU / aux values are kept (COALESCE) so VesselAPI-enriched data isn't overwritten.
+    """
     classification = get_ais_classification(type_code)
-    
-    # We really only care about Cargo and Tankers for Port of Oakland emissions
-    if classification not in ["Cargo / Freight", "Tanker"]:
+    if classification not in ("Cargo / Freight", "Tanker"):
         return False
-        
-    teu, aux_kw = estimate_engine_specs(length, classification)
-    
+
+    # Container-ship estimate from length, until VesselAPI provides real values
+    teu = aux_kw = teu_source = None
+    if classification == "Cargo / Freight" and length:
+        teu, aux_kw, _ = length_archetype(length)
+        teu_source = "Length Archetype"
+
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        INSERT INTO vessel_particulars (mmsi, ship_name, ship_type_code, classification, length, width, teu_capacity, aux_engine_kw)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    conn.execute('''
+        INSERT INTO vessel_particulars (
+            mmsi, ship_name, ship_type_code, classification, length, width, teu_capacity, aux_engine_kw, teu_source
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(mmsi) DO UPDATE SET
-            ship_name=excluded.ship_name,
-            ship_type_code=excluded.ship_type_code,
-            classification=excluded.classification,
-            length=excluded.length,
-            width=excluded.width,
-            teu_capacity=excluded.teu_capacity,
-            aux_engine_kw=excluded.aux_engine_kw
-    ''', (mmsi, name, type_code, classification, length, width, teu, aux_kw))
-    
+            ship_name = excluded.ship_name,
+            ship_type_code = excluded.ship_type_code,
+            classification = excluded.classification,
+            length = CASE WHEN excluded.length > 0 THEN excluded.length ELSE vessel_particulars.length END,
+            width = CASE WHEN excluded.width > 0 THEN excluded.width ELSE vessel_particulars.width END,
+            teu_capacity = COALESCE(vessel_particulars.teu_capacity, excluded.teu_capacity),
+            aux_engine_kw = COALESCE(vessel_particulars.aux_engine_kw, excluded.aux_engine_kw),
+            teu_source = COALESCE(vessel_particulars.teu_source, excluded.teu_source)
+    ''', (mmsi, name, type_code, classification, length, width, teu, aux_kw, teu_source))
     conn.commit()
     conn.close()
     return True
 
+
 def log_event_to_db(mmsi, name, dest, status, location, speed):
+    """Saves a ship event, and flags the vessel when it moors at the Port of Oakland."""
     conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    timestamp = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
-    
-    cursor.execute('''
+    conn.execute('''
         INSERT INTO ship_events (timestamp, mmsi, ship_name, destination, nav_status, physical_location, speed)
         VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (timestamp, mmsi, name, dest, status, location, speed))
-    
+    ''', (now_utc(), mmsi, name, dest, status, location, speed))
+
+    if location == "Port of Oakland" and status == "Moored":
+        conn.execute('''
+            UPDATE vessel_particulars
+            SET is_oakland_berth = 1,
+                oakland_berth_count = COALESCE(oakland_berth_count, 0) + 1
+            WHERE mmsi = ?
+        ''', (mmsi,))
+
     conn.commit()
     conn.close()
     print(f"[SAVED TO DB]: {name} is now {status} at {location}")
-
-def log_daily_bunker_price(vlsfo, mgo, ifo380=None, lng=None, methanol=None, ammonia=None, biofuel=None):
-    """Saves the daily closing price to the database, ignoring if already saved today."""
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # Use today's date (YYYY-MM-DD)
-    today = datetime.utcnow().strftime('%Y-%m-%d')
-    
-    # ON CONFLICT DO NOTHING ensures we only save the first price fetched each day
-    cursor.execute('''
-        INSERT INTO daily_bunker_prices (date, vlsfo_price, mgo_price, ifo380_price, lng_price, methanol_price, ammonia_price, biofuel_price)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO NOTHING
-    ''', (today, vlsfo, mgo, ifo380, lng, methanol, ammonia, biofuel))
-    
-    if cursor.rowcount > 0:
-        print(f"[SAVED TO DB]: Logged today's bunker prices - VLSFO: ${vlsfo}, MGO: ${mgo}")
-        
-    conn.commit()
-    conn.close()

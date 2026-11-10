@@ -1,76 +1,64 @@
+import os
+from datetime import datetime, timezone
+from io import StringIO
+
 import pandas as pd
 import requests
+
+URL = "https://shipandbunker.com/prices"
+CSV_FILE = "data/daily_bunker_prices.csv"
+CSV_COLUMNS = ["date", "vlsfo_price", "mgo_price", "ifo380_price", "lng_price",
+               "methanol_price", "ammonia_price", "biofuel_price"]
+
+# Used if the site blocks the scraper or is down ($/mt)
+FALLBACK_PRICES = {"VLSFO": 650.00, "MGO": 850.00}
+
+
+def scrape_prices():
+    """Scrapes the Ship & Bunker 'Global 20 Ports Average' for VLSFO and MGO ($/mt)."""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    response = requests.get(URL, headers=headers, timeout=10)
+    response.raise_for_status()
+
+    # The homepage has one table per fuel: 0 = IFO380, 1 = VLSFO, 2 = MGO
+    tables = pd.read_html(StringIO(response.text))
+
+    def global_average(table):
+        row = table[table.iloc[:, 0].str.contains("Global 20", na=False)]
+        return float(row["Price $/mt"].values[0])
+
+    return {"VLSFO": global_average(tables[1]), "MGO": global_average(tables[2])}
+
+
+def save_prices(prices):
+    """Appends today's prices to the CSV unless today is already there."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    new_row = pd.DataFrame([{
+        "date": today,
+        "vlsfo_price": prices["VLSFO"],
+        "mgo_price": prices["MGO"],
+    }], columns=CSV_COLUMNS)
+
+    if not os.path.exists(CSV_FILE):
+        new_row.to_csv(CSV_FILE, index=False)
+        return
+
+    existing = pd.read_csv(CSV_FILE)
+    if today not in existing["date"].values:
+        pd.concat([existing, new_row], ignore_index=True).to_csv(CSV_FILE, index=False)
+
+
 def get_live_bunker_prices():
-    """
-    Scrapes live global average bunker fuel prices from Ship & Bunker.
-    Returns a dictionary of prices in $/mt for VLSFO and MGO.
-    """
-    url = "https://shipandbunker.com/prices"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    
+    """Returns {"VLSFO": $/mt, "MGO": $/mt}, saving today's prices to the CSV."""
     try:
-        response = requests.get(url, headers=headers, timeout=10)
-        response.raise_for_status()
-        
-        from io import StringIO
-        # pandas read_html automatically finds all <table> elements
-        dfs = pd.read_html(StringIO(response.text))
-        
-        # Ship & Bunker organizes fuel types into sequential tables on the homepage
-        # Table 0: IFO380
-        # Table 1: VLSFO (Very Low Sulfur Fuel Oil)
-        # Table 2: MGO (Marine Gas Oil)
-        
-        vlsfo_df = dfs[1]
-        mgo_df = dfs[2]
-        
-        # Find the row for "Global 20 Ports Average"
-        vlsfo_row = vlsfo_df[vlsfo_df.iloc[:, 0].str.contains("Global 20", na=False)]
-        mgo_row = mgo_df[mgo_df.iloc[:, 0].str.contains("Global 20", na=False)]
-        
-        vlsfo_price = float(vlsfo_row["Price $/mt"].values[0])
-        mgo_price = float(mgo_row["Price $/mt"].values[0])
-        
-        from datetime import datetime, timezone
-        import os
-        
-        csv_file = "data/daily_bunker_prices.csv"
-        today = datetime.now(timezone.utc).strftime('%Y-%m-%d')
-        
-        new_row = pd.DataFrame([{
-            "date": today,
-            "vlsfo_price": vlsfo_price,
-            "mgo_price": mgo_price,
-            "ifo380_price": None,
-            "lng_price": None,
-            "methanol_price": None,
-            "ammonia_price": None,
-            "biofuel_price": None
-        }])
-        
-        if os.path.exists(csv_file):
-            existing_df = pd.read_csv(csv_file)
-            if today not in existing_df["date"].values:
-                existing_df = pd.concat([existing_df, new_row], ignore_index=True)
-                existing_df.to_csv(csv_file, index=False)
-        else:
-            new_row.to_csv(csv_file, index=False)
-        
-        return {
-            "VLSFO": vlsfo_price,
-            "MGO": mgo_price
-        }
-        
+        prices = scrape_prices()
+        save_prices(prices)
+        return prices
     except Exception as e:
         print(f"Error fetching live bunker prices: {e}")
         print("Falling back to static average estimates...")
-        # Fallback to realistic static averages if the site blocks the scraper or goes down
-        return {
-            "VLSFO": 650.00,  # Estimated $/mt
-            "MGO": 850.00     # Estimated $/mt
-        }
+        return dict(FALLBACK_PRICES)
+
 
 if __name__ == "__main__":
     prices = get_live_bunker_prices()
