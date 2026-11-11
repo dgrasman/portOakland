@@ -14,9 +14,6 @@ load_dotenv()
 
 API_BASE = "https://api.vesselapi.com/v1"
 
-# --------------------------------------------------------------------------
-# VesselAPI client
-# --------------------------------------------------------------------------
 
 def get_api_key():
     return os.getenv("VESSEL_MMSI_API_KEY", "").strip().strip("'\"") or None
@@ -60,12 +57,6 @@ def fetch_vessel(mmsi):
     data, remaining, err = api_get(f"/vessel/{mmsi}?filter.idType=mmsi")
     return (None if err else data.get("vessel", {})), remaining, err
 
-
-def fetch_emissions(imo):
-    """EU MRV emissions records for a vessel. Returns (list, remaining_quota, error_message)."""
-    data, remaining, err = api_get(f"/vessel/{imo}/emissions?filter.idType=imo")
-    return ([] if err else data.get("emissions", [])), remaining, err
-
 # --------------------------------------------------------------------------
 # Fuel capability
 # --------------------------------------------------------------------------
@@ -79,12 +70,8 @@ FUEL_RULES = [
 ]
 
 
-def analyze_engine_and_fuel(engine_model, vessel_type, emissions=None):
-    """Returns (is_dual_fuel, fuel_type, fuel_capability) from emissions history, engine model and vessel type."""
-    # Documented LNG burn in EU MRV records is the strongest evidence
-    if any((record.get("fuel_consumption_lng") or 0) > 0 for record in emissions or []):
-        return 1, "LNG / MGO", "LNG Dual-Fuel (Verified Operational)"
-
+def analyze_engine_and_fuel(engine_model, vessel_type):
+    """Returns (is_dual_fuel, fuel_type, fuel_capability) from engine model and vessel type."""
     model = (engine_model or "").strip().upper()
     for tags, fuel_type, capability in FUEL_RULES:
         if any(tag in model for tag in tags):
@@ -190,7 +177,7 @@ def compute_auxiliary_specs(teu, gross_tonnage, vessel_type, classification):
 # Enrichment
 # --------------------------------------------------------------------------
 
-def build_enriched_record(mmsi, ais_row, api_vessel, emissions=None):
+def build_enriched_record(mmsi, ais_row, api_vessel):
     """Combines the AIS row from the database with the VesselAPI payload into one record."""
     gt = api_vessel.get("gross_tonnage")
     vessel_type = api_vessel.get("vessel_type") or ""
@@ -199,11 +186,7 @@ def build_enriched_record(mmsi, ais_row, api_vessel, emissions=None):
 
     teu, teu_source = compute_refined_teu(api_vessel.get("teu"), gt, length, vessel_type, classification)
     aux_installed_kw, aux_berth_kw = compute_auxiliary_specs(teu, gt, vessel_type, classification)
-    is_dual_fuel, fuel_type, fuel_capability = analyze_engine_and_fuel(
-        api_vessel.get("engine_model_name"), vessel_type, emissions
-    )
-
-    latest_emissions = emissions[0] if emissions else {}
+    is_dual_fuel, fuel_type, fuel_capability = analyze_engine_and_fuel(api_vessel.get("engine_model_name"), vessel_type)
 
     return {
         "mmsi": str(mmsi),
@@ -227,8 +210,6 @@ def build_enriched_record(mmsi, ais_row, api_vessel, emissions=None):
         "fuel_type": fuel_type,
         "is_dual_fuel": is_dual_fuel,
         "fuel_capability": fuel_capability,
-        "technical_efficiency": latest_emissions.get("technical_efficiency"),
-        "co2_at_berth_annual": latest_emissions.get("co2_emissions_at_berth"),
         "flag_country": api_vessel.get("country"),
         "year_built": api_vessel.get("year_built"),
         "call_sign": api_vessel.get("call_sign"),
@@ -236,15 +217,14 @@ def build_enriched_record(mmsi, ais_row, api_vessel, emissions=None):
     }
 
 
-def enrich_vessel_in_db(mmsi, check_emissions=False, db_path=DB_PATH):
+def enrich_vessel_in_db(mmsi, db_path=DB_PATH):
     """
     Fetches one vessel from VesselAPI and saves it to vessel_particulars.
-    Skips vessels that were already enriched.
+    Skips vessels that were already enriched, and stamps 404s so later runs don't re-query them.
     Returns (success, message, remaining_quota).
     """
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    try:
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
         row = conn.execute("SELECT * FROM vessel_particulars WHERE mmsi = ?", (str(mmsi),)).fetchone()
         if not row:
             return False, f"MMSI {mmsi} not found in vessel_particulars", None
@@ -254,37 +234,21 @@ def enrich_vessel_in_db(mmsi, check_emissions=False, db_path=DB_PATH):
 
         api_vessel, remaining, err = fetch_vessel(mmsi)
         if err:
+            if "404" in err:
+                conn.execute("""
+                    UPDATE vessel_particulars
+                    SET teu_source = COALESCE(teu_source, 'Not in VesselAPI registry'), last_api_update = ?
+                    WHERE mmsi = ? AND last_api_update IS NULL
+                """, (now_utc(), str(mmsi)))
             return False, f"API error for {mmsi}: {err}", remaining
 
-        emissions = []
-        if check_emissions and api_vessel.get("imo"):
-            emissions, remaining, _ = fetch_emissions(api_vessel["imo"])
-
-        record = build_enriched_record(mmsi, ais_row, api_vessel, emissions)
+        record = build_enriched_record(mmsi, ais_row, api_vessel)
         assignments = ", ".join(f"{column} = :{column}" for column in record if column != "mmsi")
         conn.execute(f"UPDATE vessel_particulars SET {assignments} WHERE mmsi = :mmsi", record)
-        conn.commit()
 
-        message = (f"Enriched {record['ship_name']} (IMO: {record['imo']}, GT: {record['gross_tonnage']}, "
-                   f"TEU: {record['teu_capacity']}, Fuel: {record['fuel_capability']})")
-        return True, message, remaining
-    finally:
-        conn.close()
-
-
-def mark_not_in_registry(mmsi, db_path=DB_PATH):
-    """Stamps a vessel VesselAPI doesn't know, so later runs don't spend quota re-querying it."""
-    try:
-        conn = sqlite3.connect(db_path)
-        conn.execute("""
-            UPDATE vessel_particulars
-            SET teu_source = COALESCE(teu_source, 'Not in VesselAPI registry'), last_api_update = ?
-            WHERE mmsi = ? AND last_api_update IS NULL
-        """, (now_utc(), str(mmsi)))
-        conn.commit()
-        conn.close()
-    except sqlite3.Error:
-        pass
+    message = (f"Enriched {record['ship_name']} (IMO: {record['imo']}, GT: {record['gross_tonnage']}, "
+               f"TEU: {record['teu_capacity']}, Fuel: {record['fuel_capability']})")
+    return True, message, remaining
 
 
 def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
@@ -305,9 +269,8 @@ def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
     if limit:
         query += f" LIMIT {int(limit)}"
 
-    conn = sqlite3.connect(db_path)
-    candidates = conn.execute(query).fetchall()
-    conn.close()
+    with sqlite3.connect(db_path) as conn:
+        candidates = conn.execute(query).fetchall()
 
     total = len(candidates)
     print(f"\n[ENRICHMENT] Starting batch enrichment for {total} vessels (Safety Reserve: {safety_reserve})")
@@ -328,7 +291,6 @@ def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
             print(f"[{index}/{total}] SUCCESS: {message}{quota}")
         elif "404" in message:
             not_found += 1
-            mark_not_in_registry(mmsi, db_path)
             print(f"[{index}/{total}] 404 NOT FOUND: {name} (MMSI: {mmsi})")
         else:
             errors += 1

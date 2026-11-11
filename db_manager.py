@@ -39,7 +39,7 @@ VESSEL_COLUMNS = {
     "last_api_update": "DATETIME",
 }
 
-# CARB container-ship archetypes by length: (max length in m, TEU, aux load in kW, label)
+# CARB containership estimates by length: (max length in m, TEU, aux load in kW, label)
 LENGTH_ARCHETYPES = [
     (200, 1500, 750, "<200m"),
     (260, 4000, 1000, "200-260m"),
