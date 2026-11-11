@@ -1,11 +1,8 @@
-import json
 import os
 import sqlite3
 import sys
 import time
-import urllib.error
-import urllib.request
-
+import requests
 from dotenv import load_dotenv
 
 from db_manager import DB_PATH, length_archetype, now_utc
@@ -13,53 +10,32 @@ from db_manager import DB_PATH, length_archetype, now_utc
 load_dotenv()
 
 API_BASE = "https://api.vesselapi.com/v1"
-
-
-def get_api_key():
-    return os.getenv("VESSEL_MMSI_API_KEY", "").strip().strip("'\"") or None
-
-
-def api_get(path, timeout=10):
-    """
-    GET a VesselAPI endpoint.
-    Returns (json_data, remaining_monthly_quota, error_message).
-    """
-    key = get_api_key()
-    if not key:
-        return None, None, "VESSEL_MMSI_API_KEY not found"
-
-    headers = {
-        "Authorization": f"Bearer {key}",
-        "Accept": "application/json",
-        "User-Agent": "PortOakland-Enrichment/1.0",
-    }
-    try:
-        with urllib.request.urlopen(urllib.request.Request(API_BASE + path, headers=headers), timeout=timeout) as resp:
-            return json.loads(resp.read().decode("utf-8")), _remaining_quota(resp.headers), None
-    except urllib.error.HTTPError as e:
-        remaining = _remaining_quota(e.headers)
-        if e.code == 404:
-            return None, remaining, "Not Found (404)"
-        if e.code == 429:
-            return None, 0, "Rate Limit / Quota Exceeded (429)"
-        return None, remaining, f"HTTP {e.code}: {e.reason}"
-    except Exception as e:
-        return None, None, str(e)
-
-
-def _remaining_quota(headers):
-    raw = headers.get("X-Ratelimit-Remaining")
-    return int(raw) if raw and raw.isdigit() else None
+API_KEY = os.getenv("VESSEL_MMSI_API_KEY", "").strip().strip("'\"")
 
 
 def fetch_vessel(mmsi):
-    """Static vessel data. Returns (vessel_dict, remaining_quota, error_message)."""
-    data, remaining, err = api_get(f"/vessel/{mmsi}?filter.idType=mmsi")
-    return (None if err else data.get("vessel", {})), remaining, err
+    """Fetches static vessel data from VesselAPI. Returns (vessel_dict, remaining_quota, error_message)."""
+    if not API_KEY:
+        return None, None, "VESSEL_MMSI_API_KEY not found"
+    try:
+        resp = requests.get(
+            f"{API_BASE}/vessel/{mmsi}",
+            params={"filter.idType": "mmsi"},
+            headers={"Authorization": f"Bearer {API_KEY}", "Accept": "application/json"},
+            timeout=10,
+        )
+        raw_quota = resp.headers.get("X-Ratelimit-Remaining", "")
+        remaining = int(raw_quota) if raw_quota.isdigit() else None
 
-# --------------------------------------------------------------------------
-# Fuel capability
-# --------------------------------------------------------------------------
+        if resp.status_code == 404:
+            return None, remaining, "Not Found (404)"
+        if resp.status_code == 429:
+            return None, 0, "Rate Limit / Quota Exceeded (429)"
+        resp.raise_for_status()
+        return resp.json().get("vessel", {}), remaining, None
+    except Exception as e:
+        return None, None, str(e)
+
 
 # Engine-model tags (MAN B&W, WinGD, Wärtsilä, Bergen) -> (fuel_type, fuel_capability). First match wins.
 FUEL_RULES = [
@@ -76,59 +52,15 @@ def analyze_engine_and_fuel(engine_model, vessel_type):
     for tags, fuel_type, capability in FUEL_RULES:
         if any(tag in model for tag in tags):
             return 1, fuel_type, capability
-
     if "LNG" in (vessel_type or "").upper():
         return 1, "LNG / MGO", "LNG Dual-Fuel"
     return 0, "VLSFO / MGO", "Conventional Marine Fuel (MGO / VLSFO)"
 
-# --------------------------------------------------------------------------
-# TEU and auxiliary engine estimates
-# --------------------------------------------------------------------------
 
-NON_CONTAINER_TYPES = ["tanker", "bulk", "vehicle", "car carrier", "tug", "barge", "cement", "wood"]
+NON_CONTAINER_TYPES = ("tanker", "bulk", "vehicle", "car carrier", "tug", "barge", "cement", "wood")
 
-
-def compute_refined_teu(api_teu, gross_tonnage, length, vessel_type, classification):
-    """
-    Returns (teu, source), trying in order:
-    1. TEU reported by VesselAPI
-    2. 0 for non-container vessels (tankers, bulkers, car carriers, ...)
-    3. Regression on gross tonnage for container ships
-    4. CARB length archetype
-    """
-    vtype = (vessel_type or "").lower()
-
-    if api_teu and api_teu > 0:
-        return int(api_teu), "VesselAPI Verified"
-
-    if "container" not in vtype and any(kind in vtype for kind in NON_CONTAINER_TYPES):
-        return 0, "Non-Container Vessel"
-
-    is_container = (
-        "container" in vtype
-        or ("cargo" in vtype and gross_tonnage and gross_tonnage >= 30000)
-        or (classification == "Cargo / Freight" and not vtype and length and length >= 180)
-    )
-    if not is_container:
-        return 0, "Non-Container Vessel"
-
-    if gross_tonnage and gross_tonnage > 0:
-        if gross_tonnage >= 120000:
-            gt_per_teu = 9.6
-        elif gross_tonnage >= 80000:
-            gt_per_teu = 9.9
-        elif gross_tonnage >= 40000:
-            gt_per_teu = 10.5
-        else:
-            gt_per_teu = 11.2
-        return int(round(gross_tonnage / gt_per_teu)), "GT Regression Model"
-
-    if length and length > 0:
-        teu, _, label = length_archetype(length)
-        return teu, f"Length Archetype ({label})"
-
-    return 0, "Unknown"
-
+# Container ship GT-to-TEU divisors by minimum Gross Tonnage
+GT_PER_TEU = [(120000, 9.6), (80000, 9.9), (40000, 10.5), (0, 11.2)]
 
 # Container ships by TEU: (min TEU, installed aux kW, at-berth load kW)
 CONTAINER_AUX_KW = [
@@ -141,7 +73,37 @@ CONTAINER_AUX_KW = [
 ]
 
 
-def compute_auxiliary_specs(teu, gross_tonnage, vessel_type, classification):
+def compute_refined_teu(api_teu, gt, length, vessel_type, classification):
+    """
+    Returns (teu, source), trying in order:
+    1. TEU reported by VesselAPI
+    2. 0 for non-container vessels (tankers, bulkers, car carriers, ...)
+    3. Regression on gross tonnage for container ships
+    4. CARB length archetype
+    """
+    vtype = (vessel_type or "").lower()
+    if api_teu and api_teu > 0:
+        return int(api_teu), "VesselAPI Verified"
+
+    is_container = "container" in vtype or (
+        not any(k in vtype for k in NON_CONTAINER_TYPES)
+        and (("cargo" in vtype and (gt or 0) >= 30000) or (classification == "Cargo / Freight" and not vtype and (length or 0) >= 180))
+    )
+    if not is_container:
+        return 0, "Non-Container Vessel"
+
+    if gt and gt > 0:
+        divisor = next(div for min_gt, div in GT_PER_TEU if gt >= min_gt)
+        return int(round(gt / divisor)), "GT Regression Model"
+
+    if length and length > 0:
+        teu, _, label = length_archetype(length)
+        return teu, f"Length Archetype ({label})"
+
+    return 0, "Unknown"
+
+
+def compute_auxiliary_specs(teu, gt, vessel_type, classification):
     """
     Returns (installed_aux_kw, at_berth_load_kw) following CARB OGV inventory methodology.
     The at-berth load is the average hotel + reefer electrical demand.
@@ -149,33 +111,19 @@ def compute_auxiliary_specs(teu, gross_tonnage, vessel_type, classification):
     vtype = (vessel_type or "").lower()
 
     if (teu and teu > 0) or "container" in vtype:
-        size = teu or (round(gross_tonnage / 10.0) if gross_tonnage else 4000)
-        for min_teu, installed_kw, berth_kw in CONTAINER_AUX_KW:
-            if size >= min_teu:
-                return installed_kw, berth_kw
+        size = teu or (round(gt / 10.0) if gt else 4000)
+        return next((inst, berth) for min_teu, inst, berth in CONTAINER_AUX_KW if size >= min_teu)
 
     if "tanker" in vtype or classification == "Tanker":
-        gt = gross_tonnage or 30000
-        if gt >= 60000:
-            return 5500, 1800
-        if gt >= 30000:
-            return 4000, 1500
-        return 2800, 1100
+        tonnage = gt or 30000
+        return (5500, 1800) if tonnage >= 60000 else (4000, 1500) if tonnage >= 30000 else (2800, 1100)
 
-    if any(kind in vtype for kind in ["vehicle", "car carrier", "ro-ro", "roro"]):
+    if any(k in vtype for k in ("vehicle", "car carrier", "ro-ro", "roro")):
         return 4500, 950
-
     if "bulk" in vtype:
         return 2400, 420
+    return (4500, 800) if (gt or 20000) >= 40000 else (2500, 500)
 
-    # General cargo / other
-    if (gross_tonnage or 20000) >= 40000:
-        return 4500, 800
-    return 2500, 500
-
-# --------------------------------------------------------------------------
-# Enrichment
-# --------------------------------------------------------------------------
 
 def build_enriched_record(mmsi, ais_row, api_vessel):
     """Combines the AIS row from the database with the VesselAPI payload into one record."""
@@ -228,9 +176,8 @@ def enrich_vessel_in_db(mmsi, db_path=DB_PATH):
         row = conn.execute("SELECT * FROM vessel_particulars WHERE mmsi = ?", (str(mmsi),)).fetchone()
         if not row:
             return False, f"MMSI {mmsi} not found in vessel_particulars", None
-        ais_row = dict(row)
-        if ais_row["last_api_update"]:
-            return True, f"MMSI {mmsi} already enriched on {ais_row['last_api_update']}", None
+        if row["last_api_update"]:
+            return True, f"MMSI {mmsi} already enriched on {row['last_api_update']}", None
 
         api_vessel, remaining, err = fetch_vessel(mmsi)
         if err:
@@ -242,8 +189,8 @@ def enrich_vessel_in_db(mmsi, db_path=DB_PATH):
                 """, (now_utc(), str(mmsi)))
             return False, f"API error for {mmsi}: {err}", remaining
 
-        record = build_enriched_record(mmsi, ais_row, api_vessel)
-        assignments = ", ".join(f"{column} = :{column}" for column in record if column != "mmsi")
+        record = build_enriched_record(mmsi, dict(row), api_vessel)
+        assignments = ", ".join(f"{col} = :{col}" for col in record if col != "mmsi")
         conn.execute(f"UPDATE vessel_particulars SET {assignments} WHERE mmsi = :mmsi", record)
 
     message = (f"Enriched {record['ship_name']} (IMO: {record['imo']}, GT: {record['gross_tonnage']}, "
@@ -257,18 +204,12 @@ def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
     most frequent callers (then longest) first.
     Stops early when the remaining monthly quota drops to safety_reserve, or on HTTP 429.
     """
-    if not get_api_key():
-        print("[ERROR] VESSEL_MMSI_API_KEY is missing from environment or .env")
-        return {"success": False, "error": "Missing API key"}
-
-    query = """
+    query = f"""
         SELECT mmsi, ship_name FROM vessel_particulars
         WHERE is_oakland_berth = 1 AND last_api_update IS NULL
         ORDER BY oakland_berth_count DESC, length DESC
+        {f'LIMIT {int(limit)}' if limit else ''}
     """
-    if limit:
-        query += f" LIMIT {int(limit)}"
-
     with sqlite3.connect(db_path) as conn:
         candidates = conn.execute(query).fetchall()
 
@@ -280,11 +221,10 @@ def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
 
     for index, (mmsi, name) in enumerate(candidates, 1):
         if remaining is not None and remaining <= safety_reserve:
-            print(f"[QUOTA ALERT] Stopping enrichment early: only {remaining} requests remaining this billing cycle (safety reserve is {safety_reserve}).")
+            print(f"[QUOTA ALERT] Stopping early: {remaining} requests left (reserve is {safety_reserve}).")
             break
 
         success, message, remaining = enrich_vessel_in_db(mmsi, db_path=db_path)
-
         if success:
             enriched += 1
             quota = f" [Quota Left: {remaining}]" if remaining is not None else ""
@@ -296,19 +236,11 @@ def enrich_all_vessels(limit=25, safety_reserve=5, delay=0.15, db_path=DB_PATH):
             errors += 1
             print(f"[{index}/{total}] ERROR: {name} (MMSI: {mmsi}) - {message}")
             if "429" in message:
-                print("[QUOTA EXHAUSTED] Halting due to HTTP 429 quota exhaustion.")
                 break
 
         time.sleep(delay)
 
     print(f"\n[COMPLETED] Enriched: {enriched} | 404 Not Found: {not_found} | Errors: {errors} | Final Quota Remaining: {remaining}\n")
-    return {
-        "success": True,
-        "enriched": enriched,
-        "not_found": not_found,
-        "errors": errors,
-        "remaining_quota": remaining,
-    }
 
 
 if __name__ == "__main__":
