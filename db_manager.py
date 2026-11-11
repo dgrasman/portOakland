@@ -63,50 +63,36 @@ def length_archetype(length):
 
 def init_db():
     os.makedirs("data", exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    with sqlite3.connect(DB_PATH) as conn:
+        # Arrivals / departures
+        conn.execute('''
+            CREATE TABLE IF NOT EXISTS ship_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME,
+                mmsi TEXT,
+                ship_name TEXT,
+                destination TEXT,
+                nav_status TEXT,
+                physical_location TEXT,
+                speed REAL
+            )
+        ''')
 
-    # Arrivals / departures
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS ship_events (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp DATETIME,
-            mmsi TEXT,
-            ship_name TEXT,
-            destination TEXT,
-            nav_status TEXT,
-            physical_location TEXT,
-            speed REAL
-        )
-    ''')
-
-    # Vessel specifications & classifications
-    conn.execute("CREATE TABLE IF NOT EXISTS vessel_particulars (mmsi TEXT PRIMARY KEY)")
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(vessel_particulars)")}
-    for name, column_type in VESSEL_COLUMNS.items():
-        if name not in existing:
-            conn.execute(f"ALTER TABLE vessel_particulars ADD COLUMN {name} {column_type}")
-
-    conn.commit()
-    conn.close()
+        # Vessel specifications & classifications
+        conn.execute("CREATE TABLE IF NOT EXISTS vessel_particulars (mmsi TEXT PRIMARY KEY)")
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(vessel_particulars)")}
+        for name, column_type in VESSEL_COLUMNS.items():
+            if name not in existing:
+                conn.execute(f"ALTER TABLE vessel_particulars ADD COLUMN {name} {column_type}")
 
 
 def get_ais_classification(type_code):
-    """Maps standard AIS integer type codes to human-readable vessel classifications."""
-    if not type_code:
-        return "Unknown"
-    if 70 <= type_code <= 79:
+    """Maps standard AIS integer type codes to tracked commercial vessel classifications."""
+    if 70 <= (type_code or 0) <= 79:
         return "Cargo / Freight"
-    if 80 <= type_code <= 89:
+    if 80 <= (type_code or 0) <= 89:
         return "Tanker"
-    if 60 <= type_code <= 69:
-        return "Passenger / Cruise"
-    if 31 <= type_code <= 32 or type_code == 52:
-        return "Tug / Towing"
-    if type_code == 30:
-        return "Fishing"
-    if type_code in (36, 37):
-        return "Pleasure Craft / Sailboat"
-    return f"Other ({type_code})"
+    return None
 
 
 def upsert_vessel_particulars(mmsi, name, type_code, length, width):
@@ -116,7 +102,7 @@ def upsert_vessel_particulars(mmsi, name, type_code, length, width):
     Existing TEU / aux values are kept (COALESCE) so VesselAPI-enriched data isn't overwritten.
     """
     classification = get_ais_classification(type_code)
-    if classification not in ("Cargo / Freight", "Tanker"):
+    if not classification:
         return False
 
     # Container-ship estimate from length, until VesselAPI provides real values
@@ -125,43 +111,39 @@ def upsert_vessel_particulars(mmsi, name, type_code, length, width):
         teu, aux_kw, _ = length_archetype(length)
         teu_source = "Length Archetype"
 
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute('''
-        INSERT INTO vessel_particulars (
-            mmsi, ship_name, ship_type_code, classification, length, width, teu_capacity, aux_engine_kw, teu_source
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(mmsi) DO UPDATE SET
-            ship_name = excluded.ship_name,
-            ship_type_code = excluded.ship_type_code,
-            classification = excluded.classification,
-            length = CASE WHEN excluded.length > 0 THEN excluded.length ELSE vessel_particulars.length END,
-            width = CASE WHEN excluded.width > 0 THEN excluded.width ELSE vessel_particulars.width END,
-            teu_capacity = COALESCE(vessel_particulars.teu_capacity, excluded.teu_capacity),
-            aux_engine_kw = COALESCE(vessel_particulars.aux_engine_kw, excluded.aux_engine_kw),
-            teu_source = COALESCE(vessel_particulars.teu_source, excluded.teu_source)
-    ''', (mmsi, name, type_code, classification, length, width, teu, aux_kw, teu_source))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute('''
+            INSERT INTO vessel_particulars (
+                mmsi, ship_name, ship_type_code, classification, length, width, teu_capacity, aux_engine_kw, teu_source
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(mmsi) DO UPDATE SET
+                ship_name = excluded.ship_name,
+                ship_type_code = excluded.ship_type_code,
+                classification = excluded.classification,
+                length = CASE WHEN excluded.length > 0 THEN excluded.length ELSE vessel_particulars.length END,
+                width = CASE WHEN excluded.width > 0 THEN excluded.width ELSE vessel_particulars.width END,
+                teu_capacity = COALESCE(vessel_particulars.teu_capacity, excluded.teu_capacity),
+                aux_engine_kw = COALESCE(vessel_particulars.aux_engine_kw, excluded.aux_engine_kw),
+                teu_source = COALESCE(vessel_particulars.teu_source, excluded.teu_source)
+        ''', (mmsi, name, type_code, classification, length, width, teu, aux_kw, teu_source))
     return True
 
 
 def log_event_to_db(mmsi, name, dest, status, location, speed):
     """Saves a ship event, and flags the vessel when it moors at the Port of Oakland."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.execute('''
-        INSERT INTO ship_events (timestamp, mmsi, ship_name, destination, nav_status, physical_location, speed)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    ''', (now_utc(), mmsi, name, dest, status, location, speed))
-
-    if location == "Port of Oakland" and status == "Moored":
+    with sqlite3.connect(DB_PATH) as conn:
         conn.execute('''
-            UPDATE vessel_particulars
-            SET is_oakland_berth = 1,
-                oakland_berth_count = COALESCE(oakland_berth_count, 0) + 1
-            WHERE mmsi = ?
-        ''', (mmsi,))
+            INSERT INTO ship_events (timestamp, mmsi, ship_name, destination, nav_status, physical_location, speed)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (now_utc(), mmsi, name, dest, status, location, speed))
 
-    conn.commit()
-    conn.close()
+        if location == "Port of Oakland" and status == "Moored":
+            conn.execute('''
+                UPDATE vessel_particulars
+                SET is_oakland_berth = 1,
+                    oakland_berth_count = COALESCE(oakland_berth_count, 0) + 1
+                WHERE mmsi = ?
+            ''', (mmsi,))
+
     print(f"[SAVED TO DB]: {name} is now {status} at {location}")

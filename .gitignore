@@ -13,10 +13,17 @@ ENV/
 
 # Mac OS
 .DS_Store
+~$*
+
+# Notebooks & Anaconda
+.ipynb_checkpoints/
+anaconda_projects/
 
 # Streamlit local config/secrets
 .streamlit/secrets.toml
 
-# Database files
+# Database files & local exports
 *.db
 *.sqlite3
+*.xlsx
+data/vessel_particulars.*
